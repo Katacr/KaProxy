@@ -1,0 +1,5 @@
+name: KaProxy
+version: '${version}'
+main: org.katacr.kaproxy.bungee.KaProxyBungee
+author: katacr
+description: Ka 系列插件统一跨服事务代理

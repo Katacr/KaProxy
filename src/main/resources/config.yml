@@ -1,0 +1,27 @@
+core:
+  # lang 文件夹中的语言文件名（不含 .yml）。
+  language: zh_CN
+  # 是否记录未知模块或动作，排查协议版本问题时可临时开启。
+  log-unknown-modules: false
+
+modules:
+  guilds:
+    # KaGuilds 跨服广播兼容模块。
+    enabled: true
+    # 保持现有 KaGuilds 使用的 kaguilds:chat 通道，无需修改后端插件。
+    legacy-channel-enabled: true
+    # 向子服广播旧格式的全服在线玩家列表。
+    sync-player-list: true
+
+  tpa:
+    # KaTpa 请求、吟唱、切服和到达确认事务模块。
+    enabled: true
+    # 后端提交的请求有效期会被限制在此范围。
+    request-timeout-min-seconds: 5
+    request-timeout-max-seconds: 120
+    # 请求接受后，吟唱、连接和目标服落点必须在此时间内完成。
+    transaction-timeout-seconds: 60
+    # 后端允许提交给代理保存的最大跨服冷却。
+    cooldown-max-seconds: 3600
+    # 吟唱完成时跟随目标玩家当前子服；关闭后目标换服会取消传送。
+    follow-target-server: true
