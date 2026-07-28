@@ -2,6 +2,11 @@
 
 KaProxy 是 Ka 系列插件共用的跨服事务代理，单个 JAR 同时支持 Velocity 3.4 和 BungeeCord 1.21。当前内置 KaGuilds 兼容模块与 KaTpa 事务模块，后续插件可继续使用版本化的 `kaproxy:main` 协议接入。
 
+## 用户文档
+
+- [中文文档](docs/README.md)
+- [English Documentation](docs-en/README.md)
+
 ## 模块
 
 - `guilds`：兼容转发原有 `kaguilds:chat`，并继续向各子服发送旧格式全服在线玩家列表。现有 KaGuilds 不需要修改通讯代码。
