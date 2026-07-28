@@ -21,12 +21,6 @@
 * 查看代理启动日志中的插件加载错误。
 * Velocity 通常生成 `plugins/kaproxy/`，BungeeCord 通常生成 `plugins/KaProxy/`。
 
-### 公会消息出现两次
-
-最常见原因是 KaProxy 与旧版 `KaGuildsProxy.jar` 同时运行。
-
-关闭代理，将旧代理 JAR 移出 `plugins` 文件夹，然后重新启动。
-
 ### 公会消息不能跨服
 
 * 检查 `modules.guilds.enabled` 和 `legacy-channel-enabled` 是否为 `true`。

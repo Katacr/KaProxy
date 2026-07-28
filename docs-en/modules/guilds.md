@@ -1,6 +1,6 @@
-# KaGuilds Compatibility
+# KaGuilds Cross-Server Module
 
-KaProxy can replace the old KaGuilds proxy plugin. It forwards guild messages and synchronizes online players for KaGuilds installations on different backends.
+The KaProxy Guilds module forwards guild messages and synchronizes online players for KaGuilds installations on different backends.
 
 ## Requirements
 
@@ -28,18 +28,6 @@ proxy: true
 ```
 
 The exact setting location may vary between KaGuilds versions.
-
-## Migrating from the Old Proxy Plugin
-
-If `KaGuildsProxy.jar` is currently installed on the proxy:
-
-1. Stop the proxy.
-2. Move the old JAR out of the proxy's `plugins` folder.
-3. Install the KaProxy JAR.
-4. Keep the existing KaGuilds proxy settings on each backend.
-5. Start the proxy and test cross-server guild messages.
-
-Do not run the old proxy plugin and KaProxy together. The same message may otherwise be forwarded more than once.
 
 ## How to Test
 

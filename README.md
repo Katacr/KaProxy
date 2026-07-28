@@ -1,6 +1,6 @@
 # KaProxy
 
-KaProxy 是 Ka 系列插件共用的跨服事务代理，单个 JAR 同时支持 Velocity 3.4 和 BungeeCord 1.21。当前内置 KaGuilds 兼容模块与 KaTpa 事务模块，后续插件可继续使用版本化的 `kaproxy:main` 协议接入。
+KaProxy 是 Ka 系列插件共用的跨服事务代理，单个 JAR 同时支持 Velocity 3.4 和 BungeeCord 1.21。当前内置 KaGuilds 消息模块与 KaTpa 事务模块，后续插件可继续使用版本化的 `kaproxy:main` 协议接入。
 
 ## 用户文档
 
@@ -9,17 +9,16 @@ KaProxy 是 Ka 系列插件共用的跨服事务代理，单个 JAR 同时支持
 
 ## 模块
 
-- `guilds`：兼容转发原有 `kaguilds:chat`，并继续向各子服发送旧格式全服在线玩家列表。现有 KaGuilds 不需要修改通讯代码。
+- `guilds`：转发 `kaguilds:chat` 消息，并向各子服发送代理网络的在线玩家列表。
 - `tpa`：管理跨服请求 UUID、同意、拒绝、撤销、超时、源服吟唱、玩家切服、目标服到达凭证与完成确认。
 - `core`：维护玩家 UUID、名称和当前子服，提供版本校验、定向后端消息及管理命令。
 
 ## 安装
 
 1. 将 `KaProxy-1.0.0.jar` 放入 Velocity 或 BungeeCord 的 `plugins` 文件夹。
-2. 删除代理端正在运行的 `KaGuildsProxy.jar`，避免旧公会消息被重复转发；原项目源码可以保留。
-3. 首次启动生成 `plugins/kaproxy/config.yml` 和 `plugins/kaproxy/lang/`。
-4. KaGuilds 子服继续使用 `proxy: true`，所有子服连接相同 MySQL 数据库。
-5. KaTpa 子服设置 `proxy.enabled: true`，并建议将 `storage.type` 设为 `mysql`，让设置和名单跨服共享。
+2. 首次启动生成 `plugins/kaproxy/config.yml` 和 `plugins/kaproxy/lang/`。
+3. KaGuilds 子服使用 `proxy: true`，所有子服连接相同 MySQL 数据库。
+4. KaTpa 子服设置 `proxy.enabled: true`，并建议将 `storage.type` 设为 `mysql`，让设置和名单跨服共享。
 
 Velocity 数据目录名称由插件 ID 决定，通常为 `plugins/kaproxy`；BungeeCord 通常为 `plugins/KaProxy`。
 

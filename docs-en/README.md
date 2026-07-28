@@ -21,11 +21,11 @@ description: KaProxy - A Velocity and BungeeCord proxy for Ka plugins
 
 ## Main Features
 
-### KaGuilds Compatibility
+### KaGuilds Cross-Server Module
 
 * Forward KaGuilds guild messages between backend servers
 * Synchronize online players and their current backend
-* Work with existing KaGuilds proxy settings without redesigning the guild system
+* Connect to the guild network through the KaGuilds proxy settings
 
 ### KaTpa Cross-Server Teleportation
 
@@ -57,6 +57,5 @@ The same `KaProxy-1.0.0.jar` supports:
 ## Important Notes
 
 * Install KaProxy on the proxy only. Do not place it in the `plugins` folder of a Paper, Folia, or Spigot backend.
-* Do not run KaProxy and the old `KaGuildsProxy.jar` on the same proxy. Guild messages may otherwise be forwarded more than once.
 * KaProxy does not replace KaGuilds or KaTpa. The corresponding plugin must still be installed and configured on each backend.
 * After changing the configuration or language files, use `/kaproxy reload`.

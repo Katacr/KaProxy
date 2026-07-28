@@ -1,6 +1,6 @@
-# KaGuilds 跨服兼容
+# KaGuilds 跨服模块
 
-KaProxy 可以代替旧版 KaGuilds 代理插件，为各子服上的 KaGuilds 转发公会消息并同步代理在线玩家。
+KaProxy 的 Guilds 模块为各子服上的 KaGuilds 转发公会消息并同步代理在线玩家。
 
 ## 使用条件
 
@@ -28,18 +28,6 @@ proxy: true
 ```
 
 具体字段位置以当前 KaGuilds 版本的配置文件为准。
-
-## 从旧代理插件迁移
-
-如果代理端正在使用 `KaGuildsProxy.jar`：
-
-1. 关闭代理。
-2. 将旧 JAR 移出代理的 `plugins` 文件夹。
-3. 放入 KaProxy JAR。
-4. 保持各子服 KaGuilds 的代理配置不变。
-5. 启动代理并测试跨服公会消息。
-
-不要让旧代理插件与 KaProxy 同时运行，否则同一条消息可能被转发多次。
 
 ## 验证方法
 

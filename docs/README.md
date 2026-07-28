@@ -21,11 +21,11 @@ description: KaProxy - Ka 系列插件的 Velocity 与 BungeeCord 跨服代理
 
 ## 主要功能
 
-### KaGuilds 跨服兼容
+### KaGuilds 跨服模块
 
 * 在不同子服之间转发 KaGuilds 公会消息
 * 同步代理网络内的在线玩家与所在子服
-* 兼容现有 KaGuilds 跨服配置，无需重新设计公会系统
+* 使用 KaGuilds 的代理配置接入跨服公会系统
 
 ### KaTpa 跨服传送
 
@@ -57,6 +57,5 @@ description: KaProxy - Ka 系列插件的 Velocity 与 BungeeCord 跨服代理
 ## 重要说明
 
 * KaProxy 只安装在代理端，不要放入 Paper、Folia 或 Spigot 子服的 `plugins` 文件夹。
-* 同一代理上不要同时运行 KaProxy 和旧版 `KaGuildsProxy.jar`，否则公会消息可能被重复转发。
 * KaProxy 不代替 KaGuilds 或 KaTpa；子服仍需安装并配置相应插件。
 * 配置或语言文件修改后，可使用 `/kaproxy reload` 重载。

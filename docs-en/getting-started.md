@@ -16,9 +16,8 @@ Make sure that:
 
 1. Stop the proxy.
 2. Place `KaProxy-1.0.0.jar` in the proxy's `plugins` folder.
-3. If `KaGuildsProxy.jar` is currently installed, move it out of the `plugins` folder.
-4. Start the proxy.
-5. Wait for KaProxy to create its default configuration and language files.
+3. Start the proxy.
+4. Wait for KaProxy to create its default configuration and language files.
 
 The default data folder is usually:
 

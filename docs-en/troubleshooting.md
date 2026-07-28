@@ -21,12 +21,6 @@ When a cross-server feature does not work, check the following in order:
 * Check the proxy startup log for plugin loading errors.
 * Velocity normally uses `plugins/kaproxy/`; BungeeCord normally uses `plugins/KaProxy/`.
 
-### Guild Messages Appear Twice
-
-The most common cause is running KaProxy and the old `KaGuildsProxy.jar` at the same time.
-
-Stop the proxy, move the old proxy JAR out of the `plugins` folder, and start it again.
-
 ### Guild Messages Do Not Cross Servers
 
 * Make sure `modules.guilds.enabled` and `legacy-channel-enabled` are `true`.
