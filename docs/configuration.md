@@ -28,6 +28,10 @@ modules:
     transaction-timeout-seconds: 60
     cooldown-max-seconds: 3600
     follow-target-server: true
+
+  back:
+    enabled: true
+    transaction-timeout-seconds: 30
 ```
 
 ## 基础设置
@@ -57,6 +61,20 @@ modules:
 | `follow-target-server` | `true` | `true` / `false` | 目标玩家切服后，是否继续前往其最新子服。 |
 
 数值超出允许范围时会被限制到有效范围；无法识别的数值会使用默认值。
+
+## Back 设置
+
+| 配置项 | 默认值 | 可用范围 | 说明 |
+|--------|--------|----------|------|
+| `modules.back.enabled` | `true` | `true` / `false` | 是否启用跨服返回（/back 和 /dback）。关闭时，进行中的跨服返回会被取消。 |
+| `transaction-timeout-seconds` | `30` | 5–600 秒 | 切服和落点传送必须完成的总时间。 |
+
+## Kamenu 设置
+
+| 配置项 | 默认值 | 说明 |
+|--------|--------|------|
+| `modules.kamenu.enabled` | `false` | 是否启用 KaMenu 跨服动作转发。 |
+| `modules.kamenu.servers` | — | 允许接收跨服动作的后端列表。设为 `all` 或 `*` 表示转发到所有后端（排除来源服）。 |
 
 ## 语言文件
 

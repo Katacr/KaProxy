@@ -6,6 +6,8 @@
 * [Modules](modules/README.md)
   * [KaGuilds Cross-Server Module](modules/guilds.md)
   * [KaTpa Teleportation](modules/tpa.md)
+  * [Back Cross-Server Return](modules/back.md)
+  * [KaMenu Cross-Server Action Forwarding](modules/kamenu.md)
 * [Commands and Permissions](commands.md)
 * [Upgrading and Migration](migration.md)
 * [Troubleshooting](troubleshooting.md)

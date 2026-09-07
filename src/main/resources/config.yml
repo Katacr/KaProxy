@@ -25,3 +25,19 @@ modules:
     cooldown-max-seconds: 3600
     # 吟唱完成时跟随目标玩家当前子服；关闭后目标换服会取消传送。
     follow-target-server: true
+
+  back:
+    # KaTpa /back 与 /dback 跨服返回模块。
+    enabled: true
+    # 返回事务的切服与落点交付超时。
+    transaction-timeout-seconds: 30
+
+  kamenu:
+    # KaMenu 跨服动作转发模块。
+    enabled: true
+    # 允许接收跨服动作的后端列表。
+    # 设为 all 或 * 表示转发到所有后端（排除来源服）。
+    # 未列出的服务器（如 lobby、test）不会收到跨服动作包。
+    servers:
+      - survival
+      - creative

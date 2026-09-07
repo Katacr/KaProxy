@@ -9,8 +9,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /** 加载 KaProxy 的模块开关和轻量标量参数，避免为小型配置打包额外 YAML 依赖。 */
@@ -47,13 +49,31 @@ public final class KaProxyConfig {
         return new KaProxyConfig(values);
     }
 
-    /** 解析一行只包含 section 或基础标量的 YAML 配置。 */
+    /** 解析一行只包含 section、基础标量或 YAML 列表项的配置。 */
     private static void parseLine(String line, Deque<Section> sections, Map<String, String> values) {
         String stripped = line.stripLeading();
         if (stripped.isBlank() || stripped.startsWith("#")) {
             return;
         }
         int indent = line.length() - stripped.length();
+
+        // YAML 列表项：以 "- " 开头，追加到当前 section 路径下（逗号分隔）
+        if (stripped.startsWith("- ") || stripped.equals("-")) {
+            String item = stripped.startsWith("- ") ? stripped.substring(2).trim() : "";
+            int comment = item.indexOf(" #");
+            if (comment >= 0) item = item.substring(0, comment).trim();
+            if (item.length() >= 2 && item.startsWith("\"") && item.endsWith("\"")) {
+                item = item.substring(1, item.length() - 1);
+            }
+            String prefix = sections.stream().map(Section::key)
+                    .reduce((first, second) -> first + "." + second).orElse("");
+            if (prefix.isEmpty()) return;
+            String existing = values.get(prefix);
+            String merged = existing == null || existing.isEmpty() ? item : existing + "," + item;
+            values.put(prefix, merged);
+            return;
+        }
+
         int separator = stripped.indexOf(':');
         if (separator <= 0) {
             return;
@@ -108,6 +128,16 @@ public final class KaProxyConfig {
         return bool("modules.tpa.enabled", true);
     }
 
+    /** 返回 /back 与 /dback 跨服返回模块是否启用。 */
+    public boolean backEnabled() {
+        return bool("modules.back.enabled", true);
+    }
+
+    /** 返回跨服返回事务的切服与落点交付超时。 */
+    public int backTransactionTimeoutSeconds() {
+        return integer("modules.back.transaction-timeout-seconds", 30, 5, 600);
+    }
+
     /** 返回代理允许的最短请求有效期。 */
     public int tpaRequestTimeoutMinSeconds() {
         return integer("modules.tpa.request-timeout-min-seconds", 5, 1, 3600);
@@ -132,6 +162,28 @@ public final class KaProxyConfig {
     /** 返回吟唱完成时是否跟随目标玩家最新所在子服。 */
     public boolean tpaFollowTargetServer() {
         return bool("modules.tpa.follow-target-server", true);
+    }
+
+    /** 返回 KaMenu 跨服动作转发模块是否启用。 */
+    public boolean kamenuEnabled() {
+        return bool("modules.kamenu.enabled", false);
+    }
+
+    /**
+     * 返回允许接收跨服动作的后端服务器名称列表。
+     *
+     * 配置为 all 或 * 时返回 null 表示匹配全部服务器；空列表表示未配置。
+     */
+    public List<String> kamenuServers() {
+        String raw = values.get("modules.kamenu.servers");
+        if (raw == null || raw.isBlank()) return List.of();
+        if (raw.equalsIgnoreCase("all") || raw.equals("*")) return null;
+        List<String> servers = new ArrayList<>();
+        for (String part : raw.split(",")) {
+            String trimmed = part.trim();
+            if (!trimmed.isEmpty()) servers.add(trimmed);
+        }
+        return servers;
     }
 
     /** 读取布尔值，非法内容使用默认值。 */

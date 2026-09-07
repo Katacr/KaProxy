@@ -15,6 +15,9 @@ public interface ProxyAdapter {
     /** 向所有有连接的后端广播数据，可排除来源子服。 */
     void broadcast(String channel, byte[] data, String excludedServer);
 
+    /** 仅向指定服务器名的后端发送数据。 */
+    void broadcastToServer(String channel, byte[] data, String targetServer);
+
     /** 在指定毫秒后执行任务。 */
     void schedule(Runnable task, long delayMillis);
 

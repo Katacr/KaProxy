@@ -10,6 +10,7 @@ Displays:
 
 * Whether the Guilds module is enabled
 * Whether the Tpa module is enabled
+* Whether the Back module is enabled
 * The current proxy player count
 
 The proxy console and players can use this status command.
@@ -20,7 +21,7 @@ Reloads:
 
 * `config.yml`
 * The currently selected language file
-* Guilds and Tpa module switches and settings
+* Guilds, Tpa, and Back module switches and settings
 
 Permission:
 
@@ -44,4 +45,5 @@ Regular players do not need KaProxy permissions. Player permissions for TPA and 
 
 * Configuration and language changes can be reloaded without restarting the proxy.
 * Disabling the Tpa module cancels active cross-server teleport requests.
+* Disabling the Back module cancels active cross-server return transactions.
 * Restart the proxy after replacing the KaProxy JAR or changing the proxy version.

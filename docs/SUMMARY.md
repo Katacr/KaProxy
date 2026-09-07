@@ -6,6 +6,8 @@
 * [功能模块](modules/README.md)
   * [KaGuilds 跨服模块](modules/guilds.md)
   * [KaTpa 跨服传送](modules/tpa.md)
+  * [Back 跨服返回](modules/back.md)
+  * [KaMenu 跨服动作转发](modules/kamenu.md)
 * [命令与权限](commands.md)
 * [升级与迁移](migration.md)
 * [常见问题](troubleshooting.md)

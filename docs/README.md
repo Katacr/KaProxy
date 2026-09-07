@@ -35,6 +35,12 @@ description: KaProxy - Ka 系列插件的 Velocity 与 BungeeCord 跨服代理
 * 自动将玩家切换到目标所在子服，再由目标服完成最终传送
 * 可选择在目标玩家切服后继续跟随其最新子服
 
+### Back 跨服返回
+
+* 支持 `/back` 和 `/dback` 跨服返回到其他子服的精确坐标
+* 管理切服与落点交付的全流程
+* 事务超时自动取消并通知玩家
+
 ### 双平台代理
 
 同一个 `KaProxy-1.0.0.jar` 可用于：
@@ -50,6 +56,7 @@ description: KaProxy - Ka 系列插件的 Velocity 与 BungeeCord 跨服代理
 * [配置说明](configuration.md)
 * [KaGuilds 模块](modules/guilds.md)
 * [KaTpa 模块](modules/tpa.md)
+* [Back 模块](modules/back.md)
 * [命令与权限](commands.md)
 * [升级与迁移](migration.md)
 * [常见问题](troubleshooting.md)

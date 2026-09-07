@@ -52,6 +52,7 @@ public final class KaProxyBungee extends Plugin implements Listener {
         getProxy().getPluginManager().registerCommand(this, new AdminCommand());
         getLogger().info(language.text("startup", Map.of("platform", "BungeeCord")));
         core.playerTopologyChanged();
+        core.startBackgroundTasks();
     }
 
     /** 写入关闭日志并注销通道。 */
@@ -116,6 +117,8 @@ public final class KaProxyBungee extends Plugin implements Listener {
                 sender.sendMessage(TextComponent.fromLegacy(language.text("status", Map.of(
                         "guilds", language.text(config.guildsEnabled() ? "enabled" : "disabled"),
                         "tpa", language.text(config.tpaEnabled() ? "enabled" : "disabled"),
+                        "back", language.text(config.backEnabled() ? "enabled" : "disabled"),
+                        "kamenu", language.text(config.kamenuEnabled() ? "enabled" : "disabled"),
                         "players", Integer.toString(getProxy().getOnlineCount())))));
                 return;
             }
@@ -160,6 +163,14 @@ public final class KaProxyBungee extends Plugin implements Listener {
                     target.sendData(channel, data);
                 }
             });
+        }
+
+        @Override
+        public void broadcastToServer(String channel, byte[] data, String targetServer) {
+            var target = plugin.getProxy().getServerInfo(targetServer);
+            if (target != null) {
+                target.sendData(channel, data);
+            }
         }
 
         @Override

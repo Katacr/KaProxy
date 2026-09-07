@@ -28,6 +28,10 @@ modules:
     transaction-timeout-seconds: 60
     cooldown-max-seconds: 3600
     follow-target-server: true
+
+  back:
+    enabled: true
+    transaction-timeout-seconds: 30
 ```
 
 ## General Settings
@@ -57,6 +61,20 @@ modules:
 | `follow-target-server` | `true` | `true` / `false` | Whether the traveler follows the target when the target switches backends. |
 
 Values outside the accepted range are limited to a valid value. Invalid numbers use their defaults.
+
+## Back Settings
+
+| Setting | Default | Accepted Range | Description |
+|---------|---------|----------------|-------------|
+| `modules.back.enabled` | `true` | `true` / `false` | Enables cross-server return (/back and /dback). Disabling it cancels active return transactions. |
+| `transaction-timeout-seconds` | `30` | 5–600 seconds | Total time allowed for server switching and arrival teleport. |
+
+## Kamenu Settings
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `modules.kamenu.enabled` | `false` | Enables KaMenu cross-server action forwarding. |
+| `modules.kamenu.servers` | — | List of backends allowed to receive cross-server actions. Set to `all` or `*` to forward to all backends (excluding the source). |
 
 ## Language Files
 

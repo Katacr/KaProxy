@@ -35,6 +35,12 @@ description: KaProxy - A Velocity and BungeeCord proxy for Ka plugins
 * Move the traveler to the destination backend before the final teleport
 * Optionally follow the target if they switch to another backend
 
+### Back Cross-Server Return
+
+* Support `/back` and `/dback` returning to precise coordinates on another backend
+* Manage the full flow of server switching and arrival delivery
+* Automatically cancel and notify the player on transaction timeout
+
 ### Two Proxy Platforms
 
 The same `KaProxy-1.0.0.jar` supports:
@@ -50,6 +56,7 @@ The same `KaProxy-1.0.0.jar` supports:
 * [Configuration](configuration.md)
 * [KaGuilds Module](modules/guilds.md)
 * [KaTpa Module](modules/tpa.md)
+* [Back Module](modules/back.md)
 * [Commands and Permissions](commands.md)
 * [Upgrading and Migration](migration.md)
 * [Troubleshooting](troubleshooting.md)

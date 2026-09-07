@@ -74,6 +74,7 @@ public final class KaProxyVelocity {
                 server.getCommandManager().metaBuilder("kaproxy").plugin(this).build(), new AdminCommand());
         logger.info(language.text("startup", Map.of("platform", "Velocity")));
         core.playerTopologyChanged();
+        core.startBackgroundTasks();
     }
 
     /** 释放代理关闭日志。 */
@@ -137,6 +138,8 @@ public final class KaProxyVelocity {
                 source.sendMessage(Component.text(language.text("status", Map.of(
                         "guilds", language.text(config.guildsEnabled() ? "enabled" : "disabled"),
                         "tpa", language.text(config.tpaEnabled() ? "enabled" : "disabled"),
+                        "back", language.text(config.backEnabled() ? "enabled" : "disabled"),
+                        "kamenu", language.text(config.kamenuEnabled() ? "enabled" : "disabled"),
                         "players", Integer.toString(server.getPlayerCount())))));
                 return;
             }
@@ -185,6 +188,13 @@ public final class KaProxyVelocity {
                     target.sendPluginMessage(identifier, data);
                 }
             });
+        }
+
+        @Override
+        public void broadcastToServer(String channel, byte[] data, String targetServer) {
+            MinecraftChannelIdentifier identifier = MinecraftChannelIdentifier.from(channel);
+            server.getServer(targetServer).ifPresent(target ->
+                    target.sendPluginMessage(identifier, data));
         }
 
         @Override
