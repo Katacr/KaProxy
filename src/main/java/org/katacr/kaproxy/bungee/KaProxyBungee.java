@@ -26,7 +26,9 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 /** BungeeCord 入口，负责平台事件、通道、命令和 KaProxy 核心装配。 */
@@ -65,10 +67,10 @@ public final class KaProxyBungee extends Plugin implements Listener {
         getProxy().unregisterChannel(KaProxyProtocol.LEGACY_GUILDS_CHANNEL);
     }
 
-    /** 玩家连接子服后同步在线状态并交付到达凭证。 */
+    /** 玩家连接子服后同步在线状态并交付到达凭证（BungeeCord 事件不提供切换前子服，传 null 由核心推断）。 */
     @EventHandler
     public void onServerConnected(ServerConnectedEvent event) {
-        core.playerConnected(new BungeePlayer(getProxy(), event.getPlayer()));
+        core.playerConnected(new BungeePlayer(getProxy(), event.getPlayer()), null);
     }
 
     /** 玩家离开代理时取消其参与的临时事务。 */
@@ -119,6 +121,7 @@ public final class KaProxyBungee extends Plugin implements Listener {
                         "tpa", language.text(config.tpaEnabled() ? "enabled" : "disabled"),
                         "back", language.text(config.backEnabled() ? "enabled" : "disabled"),
                         "kamenu", language.text(config.kamenuEnabled() ? "enabled" : "disabled"),
+                        "broadcast", language.text(config.broadcastEnabled() ? "enabled" : "disabled"),
                         "players", Integer.toString(getProxy().getOnlineCount())))));
                 return;
             }
@@ -148,6 +151,30 @@ public final class KaProxyBungee extends Plugin implements Listener {
         public Collection<? extends ProxyPlayer> players() {
             return plugin.getProxy().getPlayers().stream()
                     .map(player -> new BungeePlayer(plugin.getProxy(), player)).toList();
+        }
+
+        @Override
+        public Collection<String> servers() {
+            return plugin.getProxy().getServers().keySet();
+        }
+
+        @Override
+        public void pingServers(Consumer<Map<String, Boolean>> callback) {
+            var servers = plugin.getProxy().getServers();
+            if (servers.isEmpty()) {
+                callback.accept(Map.of());
+                return;
+            }
+            Map<String, Boolean> status = new ConcurrentHashMap<>();
+            var remaining = new AtomicInteger(servers.size());
+            for (var entry : servers.entrySet()) {
+                entry.getValue().ping((ping, error) -> {
+                    status.put(entry.getKey(), error == null);
+                    if (remaining.decrementAndGet() == 0) {
+                        callback.accept(status);
+                    }
+                });
+            }
         }
 
         @Override

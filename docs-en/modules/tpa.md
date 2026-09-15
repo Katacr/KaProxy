@@ -63,3 +63,7 @@ The proxy limits should usually be equal to or slightly higher than the correspo
 * An administrator reloads the configuration and disables the Tpa module.
 
 These cases do not leave permanent requests. Players can send a new request after the problem is resolved.
+
+## Warp Data Sync (KaTpa)
+
+KaTpa sends `core/data_changed` packets to notify the proxy about changes to public warps (topic `warp`) and player warps (topic `player_warp`). The proxy relays them to every backend except the source, and each backend reloads the corresponding cache from the shared database. The proxy only forwards whitelisted topics, never parses the payload, and needs no extra configuration.

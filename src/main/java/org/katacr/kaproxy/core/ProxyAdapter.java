@@ -1,13 +1,21 @@
 package org.katacr.kaproxy.core;
 
 import java.util.Collection;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Consumer;
 
 /** 为 KaProxy 核心提供双平台代理无关的玩家、广播、调度和日志能力。 */
 public interface ProxyAdapter {
     /** 返回当前连接到代理的全部玩家。 */
     Collection<? extends ProxyPlayer> players();
+
+    /** 返回代理当前已注册的全部子服名称。 */
+    Collection<String> servers();
+
+    /** 异步探测所有已注册子服的在线状态，完成后回调 子服名→是否在线。 */
+    void pingServers(Consumer<Map<String, Boolean>> callback);
 
     /** 按 UUID 查找在线玩家。 */
     Optional<? extends ProxyPlayer> player(UUID playerId);

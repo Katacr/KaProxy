@@ -4,7 +4,7 @@ description: KaProxy - A Velocity and BungeeCord proxy for Ka plugins
 
 # Home
 
-> Use one proxy plugin to provide a consistent cross-server experience for KaGuilds and KaTpa.
+> Use one proxy plugin to provide a consistent cross-server experience for KaGuilds, KaTpa, and KaBroadcast.
 
 **KaProxy** runs on your Velocity or BungeeCord proxy. It does not need to be installed on every Minecraft backend server. It allows Ka plugins to identify which backend a player is connected to and coordinates cross-server guild messages and teleport requests.
 
@@ -64,5 +64,5 @@ The same `KaProxy-1.0.0.jar` supports:
 ## Important Notes
 
 * Install KaProxy on the proxy only. Do not place it in the `plugins` folder of a Paper, Folia, or Spigot backend.
-* KaProxy does not replace KaGuilds or KaTpa. The corresponding plugin must still be installed and configured on each backend.
+* KaProxy does not replace KaGuilds, KaTpa, or KaBroadcast. The corresponding plugin must still be installed and configured on each backend.
 * After changing the configuration or language files, use `/kaproxy reload`.

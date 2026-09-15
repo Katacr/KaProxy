@@ -41,3 +41,15 @@ modules:
     servers:
       - survival
       - creative
+
+  broadcast:
+    # 群组公告、统一加入退出消息和跨服死亡消息模块。
+    enabled: true
+    # 开启后记录收包与转发决策，用于排查链路问题。
+    debug: false
+    announcements-enabled: true
+    connection-messages-enabled: true
+    death-messages-enabled: true
+    # 设为 all 或 * 表示发送到所有后端；否则仅发送到列出的后端。
+    servers:
+      - all

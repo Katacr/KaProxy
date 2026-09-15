@@ -27,10 +27,13 @@ import org.slf4j.Logger;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
@@ -68,6 +71,7 @@ public final class KaProxyVelocity {
             throw new IllegalStateException("KaProxy 配置加载失败", error);
         }
         server.getChannelRegistrar().register(MAIN_CHANNEL, GUILDS_CHANNEL);
+        logger.info("[KaProxy/debug] 已注册通道: " + MAIN_CHANNEL.getId() + ", " + GUILDS_CHANNEL.getId());
         adapter = new VelocityAdapter(server, logger, this);
         core = new KaProxyCore(adapter, config, language);
         server.getCommandManager().register(
@@ -89,7 +93,9 @@ public final class KaProxyVelocity {
     @Subscribe
     public void onServerConnected(ServerPostConnectEvent event) {
         if (core != null) {
-            core.playerConnected(new VelocityPlayer(server, event.getPlayer()));
+            com.velocitypowered.api.proxy.server.RegisteredServer previous = event.getPreviousServer();
+            String previousServer = previous == null ? null : previous.getServerInfo().getName();
+            core.playerConnected(new VelocityPlayer(server, event.getPlayer()), previousServer);
         }
     }
 
@@ -106,6 +112,11 @@ public final class KaProxyVelocity {
     public void onPluginMessage(PluginMessageEvent event) {
         if (!(event.getSource() instanceof ServerConnection source)) {
             return;
+        }
+        if (config != null && config.broadcastDebug()) {
+            logger.info("[KaProxy/debug] 后端插件消息: channel=" + event.getIdentifier().getId()
+                    + ", server=" + source.getServer().getServerInfo().getName()
+                    + ", bytes=" + event.getData().length);
         }
         if (event.getIdentifier().equals(MAIN_CHANNEL)) {
             event.setResult(PluginMessageEvent.ForwardResult.handled());
@@ -140,6 +151,7 @@ public final class KaProxyVelocity {
                         "tpa", language.text(config.tpaEnabled() ? "enabled" : "disabled"),
                         "back", language.text(config.backEnabled() ? "enabled" : "disabled"),
                         "kamenu", language.text(config.kamenuEnabled() ? "enabled" : "disabled"),
+                        "broadcast", language.text(config.broadcastEnabled() ? "enabled" : "disabled"),
                         "players", Integer.toString(server.getPlayerCount())))));
                 return;
             }
@@ -173,6 +185,35 @@ public final class KaProxyVelocity {
         @Override
         public Collection<? extends ProxyPlayer> players() {
             return server.getAllPlayers().stream().map(player -> new VelocityPlayer(server, player)).toList();
+        }
+
+        @Override
+        public Collection<String> servers() {
+            return server.getAllServers().stream()
+                    .map(target -> target.getServerInfo().getName())
+                    .toList();
+        }
+
+        @Override
+        public void pingServers(Consumer<Map<String, Boolean>> callback) {
+            var targets = server.getAllServers();
+            if (targets.isEmpty()) {
+                callback.accept(Map.of());
+                return;
+            }
+            Map<String, Boolean> status = new ConcurrentHashMap<>();
+            var futures = new ArrayList<CompletableFuture<Void>>(targets.size());
+            for (var target : targets) {
+                String name = target.getServerInfo().getName();
+                futures.add(target.ping()
+                        .thenAccept(ping -> status.put(name, true))
+                        .exceptionally(error -> {
+                            status.put(name, false);
+                            return null;
+                        }));
+            }
+            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
+                    .thenRun(() -> callback.accept(status));
         }
 
         @Override

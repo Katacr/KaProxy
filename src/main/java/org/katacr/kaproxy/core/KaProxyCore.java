@@ -1,5 +1,6 @@
 package org.katacr.kaproxy.core;
 
+import org.katacr.kaproxy.broadcast.BroadcastModule;
 import org.katacr.kaproxy.config.KaProxyConfig;
 import org.katacr.kaproxy.i18n.KaProxyLanguage;
 import org.katacr.kaproxy.protocol.KaProxyProtocol;
@@ -9,7 +10,10 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /** 统一管理 Ka 系列插件消息路由、在线玩家同步和模块事务分发。 */
 public final class KaProxyCore {
@@ -18,9 +22,16 @@ public final class KaProxyCore {
     private volatile KaProxyLanguage language;
     private final TpaModule tpaModule;
     private final BackModule backModule;
+    private final BroadcastModule broadcastModule;
+    // 子服在线状态缓存（子服名→是否可 ping 通）；空表示尚未探测，按在线乐观处理。
+    private final Map<String, Boolean> serverStatus = new ConcurrentHashMap<>();
     // 旧公会在线列表周期性广播间隔（毫秒）。即使后端无在线玩家，
     // 也需主动向所有后端推送 OnlinePlayersList，供 KaGuilds 启动探测使用。
     private static final long LEGACY_PRESENCE_INTERVAL_MS = 5_000L;
+    // 子服在线状态探测间隔（毫秒）。
+    private static final long SERVER_STATUS_INTERVAL_MS = 10_000L;
+    // 允许跨服广播的数据变更主题（后端缓存刷新用）。
+    private static final Set<String> DATA_SYNC_TOPICS = Set.of("warp", "player_warp");
 
     /** 创建绑定具体代理平台的 KaProxy 核心。 */
     public KaProxyCore(ProxyAdapter adapter, KaProxyConfig config, KaProxyLanguage language) {
@@ -29,11 +40,51 @@ public final class KaProxyCore {
         this.language = language;
         this.tpaModule = new TpaModule(adapter, config, language);
         this.backModule = new BackModule(adapter, config, language);
+        this.broadcastModule = new BroadcastModule(adapter, config, language);
     }
 
     /** 启动后台周期任务（如旧公会在线列表广播）。应在代理初始化后调用一次。 */
     public void startBackgroundTasks() {
         scheduleLegacyPresenceBroadcast();
+        refreshServerStatus();
+        scheduleServerStatusRefresh();
+    }
+
+    /** 周期性刷新子服在线状态，供 presence 包过滤离线子服。 */
+    private void scheduleServerStatusRefresh() {
+        adapter.schedule(() -> {
+            refreshServerStatus();
+            scheduleServerStatusRefresh();
+        }, SERVER_STATUS_INTERVAL_MS);
+    }
+
+    /** 异步探测所有已注册子服的在线状态并更新缓存。 */
+    private void refreshServerStatus() {
+        adapter.pingServers(status -> {
+            synchronized (serverStatus) {
+                serverStatus.clear();
+                serverStatus.putAll(status);
+            }
+        });
+    }
+
+    /** 返回当前在线的子服名称列表；尚未探测完成时按已注册列表乐观返回。 */
+    private List<String> onlineServerNames() {
+        var configured = adapter.servers().stream()
+                .filter(name -> name != null && !name.isBlank())
+                .toList();
+        if (configured.isEmpty()) {
+            return List.of();
+        }
+        synchronized (serverStatus) {
+            if (serverStatus.isEmpty()) {
+                return configured.stream().sorted(String.CASE_INSENSITIVE_ORDER).toList();
+            }
+            return configured.stream()
+                    .filter(name -> serverStatus.getOrDefault(name, true))
+                    .sorted(String.CASE_INSENSITIVE_ORDER)
+                    .toList();
+        }
     }
 
     /** 周期性向所有后端广播旧格式在线列表，确保新启动的后端也能完成探测。 */
@@ -50,38 +101,53 @@ public final class KaProxyCore {
     public void reload(KaProxyConfig config, KaProxyLanguage language) {
         boolean disableTpa = this.config.tpaEnabled() && !config.tpaEnabled();
         boolean disableBack = this.config.backEnabled() && !config.backEnabled();
+        boolean disableBroadcast = this.config.broadcastEnabled() && !config.broadcastEnabled();
         this.config = config;
         this.language = language;
         this.tpaModule.reload(config, language);
         this.backModule.reload(config, language);
+        this.broadcastModule.reload(config, language);
         if (disableTpa) {
             this.tpaModule.disable();
         }
         if (disableBack) {
             this.backModule.disable();
         }
+        if (disableBroadcast) {
+            this.broadcastModule.disable();
+        }
     }
 
     /** 玩家进入、切服或离开代理后广播统一及旧公会在线列表。 */
     public void playerTopologyChanged() {
+        broadcastModule.synchronizePlayers(adapter.players());
         broadcastPresence();
         broadcastLegacyGuildPresence();
     }
 
     /** 玩家真正离开代理时取消其参与的短期事务。 */
     public void playerDisconnected(ProxyPlayer player) {
+        broadcastModule.playerDisconnected(player);
         if (config.tpaEnabled()) {
             tpaModule.playerDisconnected(player.uniqueId());
         }
         if (config.backEnabled()) {
             backModule.playerDisconnected(player.uniqueId());
         }
-        playerTopologyChanged();
+        broadcastPresence();
+        broadcastLegacyGuildPresence();
     }
 
-    /** 玩家连接目标子服后尝试交付等待中的一次性到达凭证。 */
-    public void playerConnected(ProxyPlayer player) {
-        playerTopologyChanged();
+    /**
+     * 玩家连接目标子服后尝试交付等待中的一次性到达凭证。
+     *
+     * previousServerName 为平台事件提供的切换前子服名（如 Velocity ServerPostConnectEvent），
+     * 全新进入代理或断线重连时为 null；Bungee 平台无此信息时也传 null，由模块从拓扑推断。
+     */
+    public void playerConnected(ProxyPlayer player, String previousServerName) {
+        broadcastModule.playerConnected(player, previousServerName);
+        broadcastPresence();
+        broadcastLegacyGuildPresence();
         if (config.tpaEnabled()) {
             tpaModule.playerConnected(player);
         }
@@ -134,7 +200,7 @@ public final class KaProxyCore {
         try {
             KaProxyProtocol.Packet packet = KaProxyProtocol.decode(data);
             switch (packet.module()) {
-                case "core" -> handleCore(carrier, packet.action());
+                case "core" -> handleCore(carrier, sourceServer, packet.action(), packet.input());
                 case "tpa" -> {
                     if (config.tpaEnabled()) {
                         tpaModule.handle(carrier, sourceServer, packet.action(), packet.input());
@@ -150,6 +216,11 @@ public final class KaProxyCore {
                         handleKamenuDispatch(carrier, sourceServer, packet.input());
                     }
                 }
+                case "broadcast" -> {
+                    if (config.broadcastEnabled()) {
+                        broadcastModule.handle(carrier, sourceServer, packet.action(), packet.input());
+                    }
+                }
                 default -> {
                     if (config.logUnknownModules()) {
                         adapter.info(language.text("unknown-module", Map.of("module", packet.module())));
@@ -162,9 +233,34 @@ public final class KaProxyCore {
     }
 
     /** 处理无需业务状态的核心请求。 */
-    private void handleCore(ProxyPlayer carrier, String action) {
-        if ("sync_request".equals(action)) {
-            sendPresence(carrier);
+    private void handleCore(ProxyPlayer carrier, String sourceServer, String action, DataInputStream input) {
+        switch (action) {
+            case "sync_request" -> sendPresence(carrier);
+            case "data_changed" -> handleDataChanged(sourceServer, input);
+            default -> { }
+        }
+    }
+
+    /**
+     * 转发后端数据变更通知（warp/player_warp 等）到其他后端，触发其重载缓存。
+     * 仅在白名单主题内透传，来源服已被本地更新因此排除。
+     */
+    private void handleDataChanged(String sourceServer, DataInputStream input) {
+        try {
+            String topic = input.readUTF();
+            if (!DATA_SYNC_TOPICS.contains(topic)) {
+                if (config.logUnknownModules()) {
+                    adapter.info(language.text("unknown-module", Map.of("module", "core/data_changed:" + topic)));
+                }
+                return;
+            }
+            byte[] packet = KaProxyProtocol.encode("core", "data_changed", output -> {
+                output.writeUTF(sourceServer);
+                output.writeUTF(topic);
+            });
+            adapter.broadcast(KaProxyProtocol.CHANNEL, packet, sourceServer);
+        } catch (IOException error) {
+            adapter.error(language.text("packet-decode-failed", Map.of("server", sourceServer)), error);
         }
     }
 
@@ -217,6 +313,7 @@ public final class KaProxyCore {
                 .filter(player -> !player.serverName().isBlank())
                 .sorted(Comparator.comparing(ProxyPlayer::name, String.CASE_INSENSITIVE_ORDER))
                 .toList();
+        var servers = onlineServerNames();
         return KaProxyProtocol.encode("core", "presence", output -> {
             output.writeUTF(yourServerName);
             output.writeInt(players.size());
@@ -224,6 +321,10 @@ public final class KaProxyCore {
                 KaProxyProtocol.writeUuid(output, player.uniqueId());
                 output.writeUTF(player.name());
                 output.writeUTF(player.serverName());
+            }
+            output.writeInt(servers.size());
+            for (String serverName : servers) {
+                output.writeUTF(serverName);
             }
         });
     }

@@ -32,6 +32,14 @@ modules:
   back:
     enabled: true
     transaction-timeout-seconds: 30
+
+  broadcast:
+    enabled: true
+    announcements-enabled: true
+    connection-messages-enabled: true
+    death-messages-enabled: true
+    servers:
+      - all
 ```
 
 ## General Settings
@@ -75,6 +83,18 @@ Values outside the accepted range are limited to a valid value. Invalid numbers 
 |---------|---------|-------------|
 | `modules.kamenu.enabled` | `false` | Enables KaMenu cross-server action forwarding. |
 | `modules.kamenu.servers` | — | List of backends allowed to receive cross-server actions. Set to `all` or `*` to forward to all backends (excluding the source). |
+
+## Broadcast Settings
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `modules.broadcast.enabled` | `true` | Enables KaBroadcast group event forwarding. |
+| `modules.broadcast.announcements-enabled` | `true` | Allows backends to send and receive group announcements. |
+| `modules.broadcast.connection-messages-enabled` | `true` | Forwards real proxy-network entry and exit events. Backend switches do not emit events. |
+| `modules.broadcast.death-messages-enabled` | `true` | Forwards cross-server death events. |
+| `modules.broadcast.servers` | `all` | Backends receiving events. `all` or `*` means every backend. |
+
+KaProxy only forwards structured content and does not store message templates. Each KaBroadcast backend configures its own join, quit, announcement, and death text.
 
 ## Language Files
 

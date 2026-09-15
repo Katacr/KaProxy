@@ -1,6 +1,6 @@
 # 功能模块
 
-KaProxy 当前提供四个可独立启用的用户功能模块。
+KaProxy 当前提供五个可独立启用的用户功能模块。
 
 ## KaGuilds
 
@@ -25,5 +25,11 @@ KaProxy 当前提供四个可独立启用的用户功能模块。
 为 KaMenu 菜单动作提供跨服转发，使目标选择器 `{player: *}{cross}` 能触达其他子服的玩家。
 
 [查看 KaMenu 模块说明](kamenu.md)
+
+## KaBroadcast
+
+为 KaBroadcast 后端转发群组公告、真正进入/离开代理网络事件和跨服死亡事件。
+
+[查看 KaBroadcast 模块说明](broadcast.md)
 
 不使用某项功能时，可以在 `config.yml` 中关闭对应模块。

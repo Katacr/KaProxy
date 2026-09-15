@@ -169,6 +169,45 @@ public final class KaProxyConfig {
         return bool("modules.kamenu.enabled", false);
     }
 
+    /** 返回群组公共消息模块是否启用。 */
+    public boolean broadcastEnabled() {
+        return bool("modules.broadcast.enabled", false);
+    }
+
+    /** 返回群组公共消息链路的诊断日志开关。 */
+    public boolean broadcastDebug() {
+        return bool("modules.broadcast.debug", false);
+    }
+
+    /** 返回群组公告转发是否启用。 */
+    public boolean broadcastAnnouncementsEnabled() {
+        return broadcastEnabled() && bool("modules.broadcast.announcements-enabled", true);
+    }
+
+    /** 返回群组加入退出消息是否启用。 */
+    public boolean broadcastConnectionMessagesEnabled() {
+        return broadcastEnabled() && bool("modules.broadcast.connection-messages-enabled", true);
+    }
+
+    /** 返回群组死亡消息是否启用。 */
+    public boolean broadcastDeathMessagesEnabled() {
+        return broadcastEnabled() && bool("modules.broadcast.death-messages-enabled", true);
+    }
+
+    /** 返回允许接收公共消息的后端列表；all 或 * 返回 null。 */
+    public List<String> broadcastServers() {
+        String raw = values.get("modules.broadcast.servers");
+        if (raw == null || raw.isBlank() || raw.equalsIgnoreCase("all") || raw.equals("*")) {
+            return null;
+        }
+        List<String> servers = new ArrayList<>();
+        for (String part : raw.split(",")) {
+            String trimmed = part.trim();
+            if (!trimmed.isEmpty()) servers.add(trimmed);
+        }
+        return servers;
+    }
+
     /**
      * 返回允许接收跨服动作的后端服务器名称列表。
      *

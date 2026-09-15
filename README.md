@@ -1,6 +1,6 @@
 # KaProxy
 
-KaProxy 是 Ka 系列插件共用的跨服事务代理，单个 JAR 同时支持 Velocity 3.4 和 BungeeCord 1.21。当前内置 KaGuilds 消息模块与 KaTpa 事务模块，后续插件可继续使用版本化的 `kaproxy:main` 协议接入。
+KaProxy 是 Ka 系列插件共用的跨服事务代理，单个 JAR 同时支持 Velocity 3.4 和 BungeeCord 1.21。当前内置 KaGuilds 消息模块、KaTpa 事务模块和 KaBroadcast 群组公共事件模块，后续插件可继续使用版本化的 `kaproxy:main` 协议接入。
 
 ## 用户文档
 
@@ -11,6 +11,7 @@ KaProxy 是 Ka 系列插件共用的跨服事务代理，单个 JAR 同时支持
 
 - `guilds`：转发 `kaguilds:chat` 消息，并向各子服发送代理网络的在线玩家列表。
 - `tpa`：管理跨服请求 UUID、同意、拒绝、撤销、超时、源服吟唱、玩家切服、目标服到达凭证与完成确认。
+- `broadcast`：判断玩家是否真正进入或离开代理网络，转发公告、统一加入/退出事件和跨服死亡事件；消息模板由各后端 KaBroadcast 独立配置。
 - `core`：维护玩家 UUID、名称和当前子服，提供版本校验、定向后端消息及管理命令。
 
 ## 安装
@@ -42,6 +43,14 @@ modules:
     transaction-timeout-seconds: 60
     cooldown-max-seconds: 3600
     follow-target-server: true
+
+  broadcast:
+    enabled: true
+    announcements-enabled: true
+    connection-messages-enabled: true
+    death-messages-enabled: true
+    servers:
+      - all
 ```
 
 `follow-target-server` 启用后，目标玩家在吟唱期间切换子服时，旅行者会前往其最新子服。关闭后目标换服会中断事务。
@@ -50,7 +59,7 @@ modules:
 
 ## 命令
 
-- `/kaproxy status`：查看 Guilds、Tpa 模块状态和代理在线人数。
+- `/kaproxy status`：查看 Guilds、Tpa、Back、Kamenu、Broadcast 模块状态和代理在线人数。
 - `/kaproxy reload`：重载配置和语言，需要 `kaproxy.admin`。
 
 ## 构建

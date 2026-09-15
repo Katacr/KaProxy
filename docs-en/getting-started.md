@@ -11,6 +11,7 @@ Make sure that:
 * Players can already join the backend servers through the proxy.
 * KaGuilds is installed on each backend that needs cross-server guild features.
 * A compatible KaTpa version is installed on each backend that needs cross-server teleportation.
+* KaBroadcast is installed on each backend that needs group-wide messages.
 
 ## Install KaProxy
 
@@ -48,6 +49,16 @@ On every backend that participates in cross-server teleportation:
 3. We recommend using the same MySQL database on every backend so player settings and lists remain consistent.
 4. Restart or reload KaTpa on each backend.
 
+### Using KaBroadcast
+
+On every backend that participates in group messages:
+
+1. Install KaBroadcast.
+2. Confirm `proxy.enabled: true` in KaBroadcast.
+3. Enable `modules.broadcast` in KaProxy.
+4. Configure message templates independently in each backend's KaBroadcast `config.yml`.
+5. Restart or reload the plugin.
+
 ## Verify the Installation
 
 Run this command in the proxy console:
@@ -62,5 +73,7 @@ Then use two test accounts on different backends:
 
 * Send a KaGuilds guild message and confirm that it reaches the other backend.
 * Send a KaTpa request and confirm that accepting it moves the traveler to the target player.
+* Enter and leave the proxy once and confirm exactly one group join/quit message; switch between two backends and confirm no duplicate messages.
+* Die on one backend and confirm that other KaBroadcast backends display one death message.
 
 If a feature does not work, see [Troubleshooting](troubleshooting.md).

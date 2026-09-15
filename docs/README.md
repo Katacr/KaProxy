@@ -4,7 +4,7 @@ description: KaProxy - Ka 系列插件的 Velocity 与 BungeeCord 跨服代理
 
 # 首页
 
-> 使用一个代理插件，为 KaGuilds 和 KaTpa 提供统一、稳定的跨服体验。
+> 使用一个代理插件，为 KaGuilds、KaTpa 和 KaBroadcast 提供统一、稳定的跨服体验。
 
 **KaProxy** 安装在 Velocity 或 BungeeCord 代理端，不需要安装到每个 Minecraft 子服。它让 Ka 系列插件能够识别玩家当前所在子服，并协调跨服公会消息与跨服传送请求。
 
@@ -64,5 +64,5 @@ description: KaProxy - Ka 系列插件的 Velocity 与 BungeeCord 跨服代理
 ## 重要说明
 
 * KaProxy 只安装在代理端，不要放入 Paper、Folia 或 Spigot 子服的 `plugins` 文件夹。
-* KaProxy 不代替 KaGuilds 或 KaTpa；子服仍需安装并配置相应插件。
+* KaProxy 不代替 KaGuilds、KaTpa 或 KaBroadcast；子服仍需安装并配置相应插件。
 * 配置或语言文件修改后，可使用 `/kaproxy reload` 重载。

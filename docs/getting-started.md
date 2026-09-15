@@ -11,6 +11,7 @@
 * 后端子服已经可以通过代理正常进入。
 * 需要跨服公会功能时，各子服已安装 KaGuilds。
 * 需要跨服传送功能时，各子服已安装兼容的 KaTpa。
+* 需要群组公共消息时，各子服已安装 KaBroadcast。
 
 ## 安装 KaProxy
 
@@ -39,6 +40,16 @@
 3. 让所有子服连接同一个 MySQL 数据库。
 4. 重启或重载对应的子服插件。
 
+### 使用 KaBroadcast
+
+在所有需要参与群组公共消息的子服中：
+
+1. 安装 KaBroadcast。
+2. 确认 KaBroadcast 的 `proxy.enabled: true`。
+3. 在 KaProxy 中启用 `modules.broadcast`。
+4. 在每个子服的 KaBroadcast `config.yml` 中独立配置消息模板。
+5. 重启或重载对应的插件。
+
 ### 使用 KaTpa
 
 在所有需要参与跨服传送的子服中：
@@ -62,5 +73,7 @@ kaproxy status
 
 * 发送一条 KaGuilds 公会消息，确认另一子服可以收到。
 * 发送一次 KaTpa 请求，确认接受后能够切换子服并到达目标玩家。
+* 从代理进入和退出一次，确认只显示一次群组加入/退出消息；在两个子服之间切换，确认不显示重复消息。
+* 在一个子服死亡，确认其他安装 KaBroadcast 的子服可以看到一次死亡消息。
 
 如果功能没有生效，请查看[常见问题](troubleshooting.md)。

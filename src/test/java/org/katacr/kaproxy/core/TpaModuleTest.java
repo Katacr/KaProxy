@@ -143,12 +143,26 @@ final class TpaModuleTest {
         }
 
         @Override
+        public Collection<String> servers() {
+            return List.of();
+        }
+
+        @Override
+        public void pingServers(Consumer<Map<String, Boolean>> callback) {
+            callback.accept(Map.of());
+        }
+
+        @Override
         public Optional<? extends ProxyPlayer> player(UUID playerId) {
             return Optional.ofNullable(players.get(playerId));
         }
 
         @Override
         public void broadcast(String channel, byte[] data, String excludedServer) {
+        }
+
+        @Override
+        public void broadcastToServer(String channel, byte[] data, String targetServer) {
         }
 
         @Override

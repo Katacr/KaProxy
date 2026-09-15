@@ -1,6 +1,6 @@
 # Modules
 
-KaProxy currently provides four user-facing modules that can be enabled independently.
+KaProxy currently provides five user-facing modules that can be enabled independently.
 
 ## KaGuilds
 
@@ -25,5 +25,11 @@ Coordinates KaTpa's `/back` and `/dback` cross-server return, managing backend s
 Provides cross-server action forwarding so KaMenu target selectors like `{player: *}{cross}` can reach players on other backends.
 
 [Read the KaMenu module guide](kamenu.md)
+
+## KaBroadcast
+
+Forwards group announcements, real proxy-network join/quit events, and cross-server death events to KaBroadcast backends.
+
+[Read the KaBroadcast module guide](broadcast.md)
 
 If you do not use one of these features, disable its module in `config.yml`.

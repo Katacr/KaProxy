@@ -32,6 +32,14 @@ modules:
   back:
     enabled: true
     transaction-timeout-seconds: 30
+
+  broadcast:
+    enabled: true
+    announcements-enabled: true
+    connection-messages-enabled: true
+    death-messages-enabled: true
+    servers:
+      - all
 ```
 
 ## 基础设置
@@ -75,6 +83,18 @@ modules:
 |--------|--------|------|
 | `modules.kamenu.enabled` | `false` | 是否启用 KaMenu 跨服动作转发。 |
 | `modules.kamenu.servers` | — | 允许接收跨服动作的后端列表。设为 `all` 或 `*` 表示转发到所有后端（排除来源服）。 |
+
+## Broadcast 设置
+
+| 配置项 | 默认值 | 说明 |
+|--------|--------|------|
+| `modules.broadcast.enabled` | `true` | 是否启用 KaBroadcast 群组公共事件转发。 |
+| `modules.broadcast.announcements-enabled` | `true` | 是否允许后端发送和接收群组公告。 |
+| `modules.broadcast.connection-messages-enabled` | `true` | 是否转发真实进入和离开代理网络的事件。子服切换不会产生事件。 |
+| `modules.broadcast.death-messages-enabled` | `true` | 是否转发跨服死亡事件。 |
+| `modules.broadcast.servers` | `all` | 接收事件的后端列表。`all` 或 `*` 表示全部后端。 |
+
+KaProxy 只转发结构化内容，不保存消息模板。加入、退出、公告和死亡文本由各子服 KaBroadcast 配置。
 
 ## 语言文件
 
