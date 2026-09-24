@@ -208,6 +208,78 @@ public final class KaProxyConfig {
         return servers;
     }
 
+    /** 返回 KaLogin 跨服登录会话模块是否启用。 */
+    public boolean kaloginEnabled() {
+        return bool("modules.kalogin.enabled", false);
+    }
+
+    /** 返回 KaLogin 会话是否绑定登录时的 IP（IP 变化将拒绝恢复登录态）。 */
+    public boolean kaloginBindIp() {
+        return bool("modules.kalogin.bind-ip", true);
+    }
+
+    /** 返回跨服位置数据库的 JDBC URL；未配置数据库时返回 null。 */
+    public String databaseUrl() {
+        String host = values.get("database.host");
+        String database = values.get("database.database");
+        if (host == null || host.isBlank() || database == null || database.isBlank()) {
+            return null;
+        }
+        int port = integer("database.port", 3306, 1, 65535);
+        String params = values.getOrDefault("database.params", "");
+        return "jdbc:mysql://" + host.trim() + ":" + port + "/" + database.trim() + params;
+    }
+
+    /** 返回跨服位置数据库用户名。 */
+    public String databaseUsername() {
+        return values.getOrDefault("database.username", "root");
+    }
+
+    /** 返回跨服位置数据库密码。 */
+    public String databasePassword() {
+        return values.getOrDefault("database.password", "");
+    }
+
+    /** 返回 KaLogin 会话同步链路的诊断日志开关。 */
+    public boolean kaloginDebug() {
+        return bool("modules.kalogin.debug", false);
+    }
+
+    /** 返回“上次下线位置”模块是否启用。 */
+    public boolean lastSeenEnabled() {
+        return bool("modules.lastseen.enabled", false);
+    }
+
+    /** 返回位置无效时回退的默认子服名；空串表示停留在当前子服。 */
+    public String lastSeenDefaultServer() {
+        String value = values.get("modules.lastseen.default-server");
+        return value == null ? "" : value.trim();
+    }
+
+    /** 返回是否在初次连接时直接把玩家连到上次所在子服（消除先落默认服的双重进服）。 */
+    public boolean lastSeenConnectDirectly() {
+        return bool("modules.lastseen.connect-directly", true);
+    }
+
+    /** 返回不记录上次位置的子服名列表；从这些子服下线时按默认服处理。 */
+    public List<String> lastSeenBlacklist() {
+        String raw = values.get("modules.lastseen.blacklist");
+        if (raw == null || raw.isBlank()) {
+            return List.of();
+        }
+        List<String> servers = new ArrayList<>();
+        for (String part : raw.split(",")) {
+            String trimmed = part.trim();
+            if (!trimmed.isEmpty()) servers.add(trimmed);
+        }
+        return servers;
+    }
+
+    /** 返回“上次下线位置”链路的诊断日志开关。 */
+    public boolean lastSeenDebug() {
+        return bool("modules.lastseen.debug", false);
+    }
+
     /**
      * 返回允许接收跨服动作的后端服务器名称列表。
      *

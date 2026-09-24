@@ -9,6 +9,8 @@
   * [Back Cross-Server Return](modules/back.md)
    * [KaMenu Cross-Server Action Forwarding](modules/kamenu.md)
    * [KaBroadcast Group Events](modules/broadcast.md)
+   * [KaLogin Cross-Server Session](modules/kalogin.md)
+   * [Last Server and Position](modules/lastseen.md)
 * [Commands and Permissions](commands.md)
 * [Upgrading and Migration](migration.md)
 * [Troubleshooting](troubleshooting.md)

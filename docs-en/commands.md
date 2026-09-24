@@ -8,9 +8,7 @@ KaProxy management commands run through the proxy console or proxy command syste
 
 Displays:
 
-* Whether the Guilds module is enabled
-* Whether the Tpa module is enabled
-* Whether the Back module is enabled
+* Whether the Guilds, Tpa, Back, KaMenu, Broadcast, Kalogin, and Lastseen modules are enabled
 * The current proxy player count
 
 The proxy console and players can use this status command.
@@ -21,7 +19,7 @@ Reloads:
 
 * `config.yml`
 * The currently selected language file
-* Guilds, Tpa, and Back module switches and settings
+* Guilds, Tpa, Back, KaMenu, Broadcast, Kalogin, and Lastseen module switches and settings
 
 Permission:
 

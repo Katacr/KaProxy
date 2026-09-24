@@ -8,6 +8,7 @@ import net.md_5.bungee.api.connection.ProxiedPlayer;
 import net.md_5.bungee.api.connection.Server;
 import net.md_5.bungee.api.event.PlayerDisconnectEvent;
 import net.md_5.bungee.api.event.PluginMessageEvent;
+import net.md_5.bungee.api.event.PostLoginEvent;
 import net.md_5.bungee.api.event.ServerConnectedEvent;
 import net.md_5.bungee.api.plugin.Command;
 import net.md_5.bungee.api.plugin.Listener;
@@ -60,11 +61,39 @@ public final class KaProxyBungee extends Plugin implements Listener {
     /** 写入关闭日志并注销通道。 */
     @Override
     public void onDisable() {
+        if (core != null) {
+            core.shutdown();
+        }
         if (language != null) {
             getLogger().info(language.text("shutdown"));
         }
         getProxy().unregisterChannel(KaProxyProtocol.CHANNEL);
         getProxy().unregisterChannel(KaProxyProtocol.LEGACY_GUILDS_CHANNEL);
+    }
+
+    /**
+     * 登录完成后按上次下线位置指定初始子服（异步读库）。
+     * PostLoginEvent 是 AsyncEvent：registerIntent 后代理会等待 completeIntent 再进入子服。
+     */
+    @EventHandler
+    public void onPostLogin(PostLoginEvent event) {
+        if (core == null) {
+            return;
+        }
+        event.registerIntent(this);
+        ProxyPlayer player = new BungeePlayer(getProxy(), event.getPlayer());
+        core.initialServerFor(player).whenComplete((target, error) -> {
+            try {
+                if (error == null && target != null && target.isPresent()) {
+                    var info = getProxy().getServerInfo(target.get());
+                    if (info != null) {
+                        event.setTarget(info);
+                    }
+                }
+            } finally {
+                event.completeIntent(this);
+            }
+        });
     }
 
     /** 玩家连接子服后同步在线状态并交付到达凭证（BungeeCord 事件不提供切换前子服，传 null 由核心推断）。 */
@@ -122,6 +151,8 @@ public final class KaProxyBungee extends Plugin implements Listener {
                         "back", language.text(config.backEnabled() ? "enabled" : "disabled"),
                         "kamenu", language.text(config.kamenuEnabled() ? "enabled" : "disabled"),
                         "broadcast", language.text(config.broadcastEnabled() ? "enabled" : "disabled"),
+                        "kalogin", language.text(config.kaloginEnabled() ? "enabled" : "disabled"),
+                        "lastseen", language.text(config.lastSeenEnabled() ? "enabled" : "disabled"),
                         "players", Integer.toString(getProxy().getOnlineCount())))));
                 return;
             }
@@ -254,6 +285,11 @@ public final class KaProxyBungee extends Plugin implements Listener {
                 return;
             }
             player.connect(target, (success, error) -> completion.accept(Boolean.TRUE.equals(success)));
+        }
+
+        @Override
+        public void disconnect(String reason) {
+            player.disconnect(reason == null ? "" : reason);
         }
     }
 }

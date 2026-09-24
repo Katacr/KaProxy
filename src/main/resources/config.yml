@@ -4,6 +4,17 @@ core:
   # 是否记录未知模块或动作，排查协议版本问题时可临时开启。
   log-unknown-modules: false
 
+# 跨服位置记录使用的 MySQL 数据库（须与各后端 KaLogin 指向同一库）。
+# 仅支持 MySQL；未配置或连接失败时 lastseen 直连不可用，回退默认服。
+database:
+  host: "localhost"
+  port: 3306
+  database: "kalogin"
+  username: "root"
+  password: ""
+  # JDBC 附加参数
+  params: "?useSSL=false&serverTimezone=UTC"
+
 modules:
   guilds:
     # KaGuilds 跨服广播兼容模块。
@@ -53,3 +64,25 @@ modules:
     # 设为 all 或 * 表示发送到所有后端；否则仅发送到列出的后端。
     servers:
       - all
+
+  kalogin:
+    # KaLogin 跨服登录会话模块：持有已登录会话，让玩家切服后免重复登录。
+    enabled: true
+    # 会话是否绑定登录时的 IP；开启后来源 IP 变化将拒绝恢复登录态。
+    bind-ip: true
+    # 开启后记录会话建立、查询与失效的决策，用于排查链路问题。
+    debug: false
+
+  lastseen:
+    # 上次下线位置模块：玩家登录后自动回到上次下线的子服与坐标。
+    enabled: true
+    # 初次连接时直接把玩家连到上次所在子服，避免先落默认服再切换造成的双重进服。
+    connect-directly: true
+    # 目标位置所在世界无效时回退到的默认子服；留空表示停留在当前子服。
+    default-server: "lobby"
+    # 不记录上次位置的子服列表（逗号分隔）；从这些子服下线时清除记录，下次登录回默认服。
+    # 适合副本、竞技场等仅在活动期间有意义的子服，例如：
+    # blacklist: pve,pvp
+    blacklist: ""
+    # 开启后记录位置更新、前往与回退的决策，用于排查链路问题。
+    debug: false

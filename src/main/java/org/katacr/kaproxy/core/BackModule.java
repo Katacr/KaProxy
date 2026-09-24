@@ -42,6 +42,7 @@ final class BackModule {
             return;
         }
         String targetServer = input.readUTF();
+        String actionType = input.readUTF();
         String world = input.readUTF();
         double x = input.readDouble();
         double y = input.readDouble();
@@ -58,7 +59,7 @@ final class BackModule {
         if (existing != null && existing.timeoutTask != null) {
             adapter.schedule(existing.timeoutTask, 0L);
         }
-        PendingBack entry = new PendingBack(playerId, targetServer, world, x, y, z, yaw, pitch, timestamp);
+        PendingBack entry = new PendingBack(playerId, targetServer, actionType, world, x, y, z, yaw, pitch, timestamp);
         Runnable timeout = () -> expire(playerId, entry);
         entry.timeoutTask = timeout;
         pending.put(playerId, entry);
@@ -86,6 +87,7 @@ final class BackModule {
         }
         try {
             byte[] packet = KaProxyProtocol.encode("back", "back_arrival", output -> {
+                output.writeUTF(entry.actionType);
                 output.writeUTF(entry.world);
                 output.writeDouble(entry.x);
                 output.writeDouble(entry.y);
@@ -144,6 +146,7 @@ final class BackModule {
     private static final class PendingBack {
         final UUID playerId;
         final String targetServer;
+        final String actionType;
         final String world;
         final double x;
         final double y;
@@ -154,10 +157,11 @@ final class BackModule {
         Runnable timeoutTask;
 
         /** 创建待交付返回事务。 */
-        private PendingBack(UUID playerId, String targetServer, String world,
+        private PendingBack(UUID playerId, String targetServer, String actionType, String world,
                             double x, double y, double z, float yaw, float pitch, long timestamp) {
             this.playerId = playerId;
             this.targetServer = targetServer;
+            this.actionType = actionType;
             this.world = world;
             this.x = x;
             this.y = y;

@@ -224,5 +224,10 @@ final class TpaModuleTest {
             server = serverName;
             completion.accept(true);
         }
+
+        @Override
+        public void disconnect(String reason) {
+            server = "";
+        }
     }
 }

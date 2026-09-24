@@ -9,6 +9,8 @@
   * [Back 跨服返回](modules/back.md)
    * [KaMenu 跨服动作转发](modules/kamenu.md)
    * [KaBroadcast 群组公共事件](modules/broadcast.md)
+   * [KaLogin 跨服登录会话](modules/kalogin.md)
+   * [上次下线位置](modules/lastseen.md)
 * [命令与权限](commands.md)
 * [升级与迁移](migration.md)
 * [常见问题](troubleshooting.md)

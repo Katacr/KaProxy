@@ -3,9 +3,11 @@ package org.katacr.kaproxy.velocity;
 import com.google.inject.Inject;
 import com.velocitypowered.api.command.CommandSource;
 import com.velocitypowered.api.command.SimpleCommand;
+import com.velocitypowered.api.event.EventTask;
 import com.velocitypowered.api.event.Subscribe;
 import com.velocitypowered.api.event.connection.DisconnectEvent;
 import com.velocitypowered.api.event.connection.PluginMessageEvent;
+import com.velocitypowered.api.event.player.PlayerChooseInitialServerEvent;
 import com.velocitypowered.api.event.player.ServerPostConnectEvent;
 import com.velocitypowered.api.event.proxy.ProxyInitializeEvent;
 import com.velocitypowered.api.event.proxy.ProxyShutdownEvent;
@@ -38,7 +40,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 /** Velocity 入口，负责平台事件、通道、命令和 KaProxy 核心装配。 */
-@Plugin(id = "kaproxy", name = "KaProxy", version = "1.0.0",
+@Plugin(id = "kaproxy", name = "KaProxy", version = "1.0.2",
         description = "Ka 系列插件统一跨服事务代理", authors = {"katacr"})
 public final class KaProxyVelocity {
     private static final MinecraftChannelIdentifier MAIN_CHANNEL =
@@ -84,9 +86,23 @@ public final class KaProxyVelocity {
     /** 释放代理关闭日志。 */
     @Subscribe
     public void onShutdown(ProxyShutdownEvent event) {
+        if (core != null) {
+            core.shutdown();
+        }
         if (language != null) {
             logger.info(language.text("shutdown"));
         }
+    }
+
+    /** 初次连接时按上次下线位置直连目标子服（异步读库），避免先落默认服再切换。 */
+    @Subscribe
+    public EventTask onChooseInitialServer(PlayerChooseInitialServerEvent event) {
+        if (core == null) {
+            return null;
+        }
+        ProxyPlayer player = new VelocityPlayer(server, event.getPlayer());
+        return EventTask.resumeWhenComplete(core.initialServerFor(player).thenAccept(target ->
+                target.flatMap(server::getServer).ifPresent(event::setInitialServer)));
     }
 
     /** 玩家进入或切换子服后同步在线状态并交付到达凭证。 */
@@ -152,6 +168,8 @@ public final class KaProxyVelocity {
                         "back", language.text(config.backEnabled() ? "enabled" : "disabled"),
                         "kamenu", language.text(config.kamenuEnabled() ? "enabled" : "disabled"),
                         "broadcast", language.text(config.broadcastEnabled() ? "enabled" : "disabled"),
+                        "kalogin", language.text(config.kaloginEnabled() ? "enabled" : "disabled"),
+                        "lastseen", language.text(config.lastSeenEnabled() ? "enabled" : "disabled"),
                         "players", Integer.toString(server.getPlayerCount())))));
                 return;
             }
@@ -288,6 +306,11 @@ public final class KaProxyVelocity {
             }
             player.createConnectionRequest(target.get()).connect().whenComplete((result, error) ->
                     completion.accept(error == null && result != null && result.isSuccessful()));
+        }
+
+        @Override
+        public void disconnect(String reason) {
+            player.disconnect(Component.text(reason == null ? "" : reason));
         }
     }
 }

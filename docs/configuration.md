@@ -15,6 +15,15 @@ core:
   language: zh_CN
   log-unknown-modules: false
 
+# 跨服位置记录数据库（须与各后端 KaLogin 指向同一库）
+database:
+  host: "localhost"
+  port: 3306
+  database: "kalogin"
+  username: "root"
+  password: ""
+  params: "?useSSL=false&serverTimezone=UTC"
+
 modules:
   guilds:
     enabled: true
@@ -40,6 +49,18 @@ modules:
     death-messages-enabled: true
     servers:
       - all
+
+  kalogin:
+    enabled: true
+    bind-ip: true
+    debug: false
+
+  lastseen:
+    enabled: true
+    connect-directly: true
+    default-server: "lobby"
+    blacklist: "pve,pvp"
+    debug: false
 ```
 
 ## 基础设置
@@ -48,6 +69,19 @@ modules:
 |--------|--------|------|
 | `core.language` | `zh_CN` | 使用 `lang` 文件夹中的语言文件名，不包含 `.yml`。 |
 | `core.log-unknown-modules` | `false` | 是否记录无法识别的扩展消息。通常保持关闭，排障时再开启。 |
+
+## 数据库设置
+
+`lastseen` 模块使用共享 MySQL 存放上次位置，须与各后端 KaLogin 指向同一库（复用 `kalogin`）。仅支持 MySQL；未配置时该模块直连不可用，回退默认服。
+
+| 配置项 | 默认值 | 说明 |
+|--------|--------|------|
+| `database.host` | `localhost` | MySQL 主机。 |
+| `database.port` | `3306` | MySQL 端口。 |
+| `database.database` | `kalogin` | 库名（与后端 KaLogin 相同）。 |
+| `database.username` | `root` | 用户名。 |
+| `database.password` | 空 | 密码。 |
+| `database.params` | `?useSSL=false&serverTimezone=UTC` | JDBC 附加参数。 |
 
 ## Guilds 设置
 
@@ -95,6 +129,28 @@ modules:
 | `modules.broadcast.servers` | `all` | 接收事件的后端列表。`all` 或 `*` 表示全部后端。 |
 
 KaProxy 只转发结构化内容，不保存消息模板。加入、退出、公告和死亡文本由各子服 KaBroadcast 配置。
+
+## Kalogin 设置
+
+| 配置项 | 默认值 | 说明 |
+|--------|--------|------|
+| `modules.kalogin.enabled` | `true` | 是否启用 KaLogin 跨服登录会话。 |
+| `modules.kalogin.bind-ip` | `true` | 会话是否绑定登录时的 IP；来源 IP 变化时拒绝恢复登录态。 |
+| `modules.kalogin.debug` | `false` | 是否记录会话建立、查询与失效的决策日志。 |
+
+详见 [KaLogin 跨服登录会话](modules/kalogin.md)。
+
+## Lastseen 设置
+
+| 配置项 | 默认值 | 说明 |
+|--------|--------|------|
+| `modules.lastseen.enabled` | `true` | 是否启用上次下线位置自动前往。 |
+| `modules.lastseen.connect-directly` | `true` | 初次连接时是否直接把玩家连到上次所在子服（消除双重进服）。 |
+| `modules.lastseen.default-server` | `lobby` | 目标世界无效时回退的默认子服；留空表示停留在当前子服。 |
+| `modules.lastseen.blacklist` | 空 | 不记录位置的子服列表（逗号分隔，大小写不敏感）。 |
+| `modules.lastseen.debug` | `false` | 是否记录位置更新、前往与回退的决策日志。 |
+
+详见 [上次下线位置](modules/lastseen.md)。
 
 ## 语言文件
 

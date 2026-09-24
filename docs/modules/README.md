@@ -1,6 +1,6 @@
 # 功能模块
 
-KaProxy 当前提供五个可独立启用的用户功能模块。
+KaProxy 当前提供七个可独立启用的用户功能模块。
 
 ## KaGuilds
 
@@ -31,5 +31,17 @@ KaProxy 当前提供五个可独立启用的用户功能模块。
 为 KaBroadcast 后端转发群组公告、真正进入/离开代理网络事件和跨服死亡事件。
 
 [查看 KaBroadcast 模块说明](broadcast.md)
+
+## KaLogin
+
+为 KaLogin 后端持有跨服登录会话，使玩家在一个子服登录后切换子服无需重复登录。
+
+[查看 KaLogin 模块说明](kalogin.md)
+
+## Lastseen
+
+配合 KaLogin，让玩家登录后自动回到上次下线的子服与坐标。
+
+[查看上次下线位置说明](lastseen.md)
 
 不使用某项功能时，可以在 `config.yml` 中关闭对应模块。

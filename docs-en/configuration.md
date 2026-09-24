@@ -15,6 +15,15 @@ core:
   language: zh_CN
   log-unknown-modules: false
 
+# Cross-server position database (must match every KaLogin backend)
+database:
+  host: "localhost"
+  port: 3306
+  database: "kalogin"
+  username: "root"
+  password: ""
+  params: "?useSSL=false&serverTimezone=UTC"
+
 modules:
   guilds:
     enabled: true
@@ -40,6 +49,18 @@ modules:
     death-messages-enabled: true
     servers:
       - all
+
+  kalogin:
+    enabled: true
+    bind-ip: true
+    debug: false
+
+  lastseen:
+    enabled: true
+    connect-directly: true
+    default-server: "lobby"
+    blacklist: "pve,pvp"
+    debug: false
 ```
 
 ## General Settings
@@ -48,6 +69,19 @@ modules:
 |---------|---------|-------------|
 | `core.language` | `zh_CN` | The language file name in the `lang` folder, without `.yml`. |
 | `core.log-unknown-modules` | `false` | Logs unrecognized extension messages. Leave this disabled unless troubleshooting. |
+
+## Database Settings
+
+The `lastseen` module stores last positions in a shared MySQL database and must point at the same DB as every KaLogin backend (reuse `kalogin`). MySQL only; when unset, direct connect is unavailable and the default server is used.
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `database.host` | `localhost` | MySQL host. |
+| `database.port` | `3306` | MySQL port. |
+| `database.database` | `kalogin` | Database name (same as the KaLogin backends). |
+| `database.username` | `root` | Username. |
+| `database.password` | empty | Password. |
+| `database.params` | `?useSSL=false&serverTimezone=UTC` | Extra JDBC parameters. |
 
 ## Guilds Settings
 
@@ -95,6 +129,28 @@ Values outside the accepted range are limited to a valid value. Invalid numbers 
 | `modules.broadcast.servers` | `all` | Backends receiving events. `all` or `*` means every backend. |
 
 KaProxy only forwards structured content and does not store message templates. Each KaBroadcast backend configures its own join, quit, announcement, and death text.
+
+## Kalogin Settings
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `modules.kalogin.enabled` | `true` | Enables the KaLogin cross-server login session. |
+| `modules.kalogin.bind-ip` | `true` | Binds the session to the login IP; restore is rejected when the IP changes. |
+| `modules.kalogin.debug` | `false` | Logs session create, query, and invalidate decisions. |
+
+See [KaLogin Cross-Server Session](modules/kalogin.md).
+
+## Lastseen Settings
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `modules.lastseen.enabled` | `true` | Enables returning to the last server and position. |
+| `modules.lastseen.connect-directly` | `true` | Connect the player directly to their last backend on first join (removes the double join). |
+| `modules.lastseen.default-server` | `lobby` | Backend to fall back to when the target world is invalid; empty keeps the player on the current backend. |
+| `modules.lastseen.blacklist` | empty | Backends whose positions are never stored (comma-separated, case-insensitive). |
+| `modules.lastseen.debug` | `false` | Logs position update, travel, and fallback decisions. |
+
+See [Last Server and Position](modules/lastseen.md).
 
 ## Language Files
 

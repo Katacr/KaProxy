@@ -3,16 +3,23 @@ package org.katacr.kaproxy.core;
 import org.katacr.kaproxy.broadcast.BroadcastModule;
 import org.katacr.kaproxy.config.KaProxyConfig;
 import org.katacr.kaproxy.i18n.KaProxyLanguage;
+import org.katacr.kaproxy.kalogin.KaloginModule;
+import org.katacr.kaproxy.lastseen.LastSeenModule;
+import org.katacr.kaproxy.lastseen.LastSeenRepository;
+import org.katacr.kaproxy.lastseen.MySqlLastSeenRepository;
 import org.katacr.kaproxy.protocol.KaProxyProtocol;
 
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
 /** 统一管理 Ka 系列插件消息路由、在线玩家同步和模块事务分发。 */
@@ -23,6 +30,9 @@ public final class KaProxyCore {
     private final TpaModule tpaModule;
     private final BackModule backModule;
     private final BroadcastModule broadcastModule;
+    private final KaloginModule kaloginModule;
+    private final LastSeenModule lastSeenModule;
+    private final LastSeenRepository lastSeenRepository;
     // 子服在线状态缓存（子服名→是否可 ping 通）；空表示尚未探测，按在线乐观处理。
     private final Map<String, Boolean> serverStatus = new ConcurrentHashMap<>();
     // 旧公会在线列表周期性广播间隔（毫秒）。即使后端无在线玩家，
@@ -31,16 +41,26 @@ public final class KaProxyCore {
     // 子服在线状态探测间隔（毫秒）。
     private static final long SERVER_STATUS_INTERVAL_MS = 10_000L;
     // 允许跨服广播的数据变更主题（后端缓存刷新用）。
-    private static final Set<String> DATA_SYNC_TOPICS = Set.of("warp", "player_warp");
+    private static final Set<String> DATA_SYNC_TOPICS = Set.of("warp", "player_warp", "warp_rating");
 
     /** 创建绑定具体代理平台的 KaProxy 核心。 */
     public KaProxyCore(ProxyAdapter adapter, KaProxyConfig config, KaProxyLanguage language) {
+        this(adapter, config, language, new MySqlLastSeenRepository(config,
+                message -> adapter.error(message, new IllegalStateException(message))));
+    }
+
+    /** 创建核心并注入位置存储（供测试替换实现）。 */
+    public KaProxyCore(ProxyAdapter adapter, KaProxyConfig config, KaProxyLanguage language,
+                       LastSeenRepository lastSeenRepository) {
         this.adapter = adapter;
         this.config = config;
         this.language = language;
+        this.lastSeenRepository = lastSeenRepository;
         this.tpaModule = new TpaModule(adapter, config, language);
         this.backModule = new BackModule(adapter, config, language);
         this.broadcastModule = new BroadcastModule(adapter, config, language);
+        this.lastSeenModule = new LastSeenModule(adapter, lastSeenRepository, config, language);
+        this.kaloginModule = new KaloginModule(adapter, config, language, lastSeenModule::clear);
     }
 
     /** 启动后台周期任务（如旧公会在线列表广播）。应在代理初始化后调用一次。 */
@@ -48,6 +68,11 @@ public final class KaProxyCore {
         scheduleLegacyPresenceBroadcast();
         refreshServerStatus();
         scheduleServerStatusRefresh();
+    }
+
+    /** 代理关闭时释放数据库连接等资源。 */
+    public void shutdown() {
+        lastSeenRepository.close();
     }
 
     /** 周期性刷新子服在线状态，供 presence 包过滤离线子服。 */
@@ -102,11 +127,15 @@ public final class KaProxyCore {
         boolean disableTpa = this.config.tpaEnabled() && !config.tpaEnabled();
         boolean disableBack = this.config.backEnabled() && !config.backEnabled();
         boolean disableBroadcast = this.config.broadcastEnabled() && !config.broadcastEnabled();
+        boolean disableKalogin = this.config.kaloginEnabled() && !config.kaloginEnabled();
+        boolean disableLastSeen = this.config.lastSeenEnabled() && !config.lastSeenEnabled();
         this.config = config;
         this.language = language;
         this.tpaModule.reload(config, language);
         this.backModule.reload(config, language);
         this.broadcastModule.reload(config, language);
+        this.kaloginModule.reload(config, language);
+        this.lastSeenModule.reload(config, language);
         if (disableTpa) {
             this.tpaModule.disable();
         }
@@ -115,6 +144,12 @@ public final class KaProxyCore {
         }
         if (disableBroadcast) {
             this.broadcastModule.disable();
+        }
+        if (disableKalogin) {
+            this.kaloginModule.disable();
+        }
+        if (disableLastSeen) {
+            this.lastSeenModule.disable();
         }
     }
 
@@ -125,9 +160,36 @@ public final class KaProxyCore {
         broadcastLegacyGuildPresence();
     }
 
+    /**
+     * 初次连接时异步返回推荐的初始子服（上次所在服），供平台入口设置初始服务器使用。
+     * 模块未启用、无记录或目标服当前不可用（未注册/未探活）时返回空。
+     */
+    public CompletableFuture<Optional<String>> initialServerFor(ProxyPlayer player) {
+        if (!config.lastSeenEnabled()) {
+            return CompletableFuture.completedFuture(Optional.empty());
+        }
+        return lastSeenModule.initialServerFor(player.uniqueId())
+                .thenApply(server -> server.filter(this::isServerConfirmedAvailable));
+    }
+
+    /**
+     * 判断已注册子服当前是否已探活为在线。
+     * 尚未完成首次探活时返回 false（保守），避免初次直连到离线子服导致掉线。
+     */
+    private boolean isServerConfirmedAvailable(String serverName) {
+        if (!adapter.servers().contains(serverName)) {
+            return false;
+        }
+        synchronized (serverStatus) {
+            return !serverStatus.isEmpty() && serverStatus.getOrDefault(serverName, false);
+        }
+    }
+
     /** 玩家真正离开代理时取消其参与的短期事务。 */
     public void playerDisconnected(ProxyPlayer player) {
         broadcastModule.playerDisconnected(player);
+        kaloginModule.playerDisconnected(player);
+        lastSeenModule.playerDisconnected(player);
         if (config.tpaEnabled()) {
             tpaModule.playerDisconnected(player.uniqueId());
         }
@@ -146,6 +208,7 @@ public final class KaProxyCore {
      */
     public void playerConnected(ProxyPlayer player, String previousServerName) {
         broadcastModule.playerConnected(player, previousServerName);
+        lastSeenModule.playerConnected(player);
         broadcastPresence();
         broadcastLegacyGuildPresence();
         if (config.tpaEnabled()) {
@@ -219,6 +282,16 @@ public final class KaProxyCore {
                 case "broadcast" -> {
                     if (config.broadcastEnabled()) {
                         broadcastModule.handle(carrier, sourceServer, packet.action(), packet.input());
+                    }
+                }
+                case "kalogin" -> {
+                    if (config.kaloginEnabled()) {
+                        kaloginModule.handle(carrier, sourceServer, packet.action(), packet.input());
+                    }
+                }
+                case "lastseen" -> {
+                    if (config.lastSeenEnabled()) {
+                        lastSeenModule.handle(carrier, sourceServer, packet.action(), packet.input());
                     }
                 }
                 default -> {

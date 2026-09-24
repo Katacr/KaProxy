@@ -8,9 +8,7 @@ KaProxy 的管理命令在代理控制台或代理命令系统中执行，而不
 
 显示：
 
-* Guilds 模块是否启用
-* Tpa 模块是否启用
-* Back 模块是否启用
+* Guilds、Tpa、Back、KaMenu、Broadcast、Kalogin、Lastseen 模块是否启用
 * 当前代理在线人数
 
 代理控制台和玩家均可使用此状态命令。
@@ -21,7 +19,7 @@ KaProxy 的管理命令在代理控制台或代理命令系统中执行，而不
 
 * `config.yml`
 * 当前选择的语言文件
-* Guilds、Tpa 和 Back 模块开关及参数
+* Guilds、Tpa、Back、KaMenu、Broadcast、Kalogin、Lastseen 模块开关及参数
 
 权限：
 

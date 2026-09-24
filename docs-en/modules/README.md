@@ -1,6 +1,6 @@
 # Modules
 
-KaProxy currently provides five user-facing modules that can be enabled independently.
+KaProxy currently provides seven user-facing modules that can be enabled independently.
 
 ## KaGuilds
 
@@ -31,5 +31,17 @@ Provides cross-server action forwarding so KaMenu target selectors like `{player
 Forwards group announcements, real proxy-network join/quit events, and cross-server death events to KaBroadcast backends.
 
 [Read the KaBroadcast module guide](broadcast.md)
+
+## KaLogin
+
+Holds cross-server login sessions for KaLogin backends so players stay logged in when switching backends.
+
+[Read the KaLogin module guide](kalogin.md)
+
+## Lastseen
+
+Works with KaLogin so players return to the backend and coordinates where they last logged off.
+
+[Read the Last Server and Position guide](lastseen.md)
 
 If you do not use one of these features, disable its module in `config.yml`.

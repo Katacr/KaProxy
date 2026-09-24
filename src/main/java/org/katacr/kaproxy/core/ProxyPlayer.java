@@ -19,4 +19,7 @@ public interface ProxyPlayer {
 
     /** 请求切换到指定子服，并回报代理是否建立了连接。 */
     void connect(String serverName, Consumer<Boolean> completion);
+
+    /** 将玩家从整个代理网络断开，reason 为展示给玩家的原因文本。 */
+    void disconnect(String reason);
 }
