@@ -57,7 +57,8 @@ modules:
 
   lastseen:
     enabled: true
-    connect-directly: true
+    mode: direct
+    join-delay-seconds: 5
     default-server: "lobby"
     blacklist: "pve,pvp"
     debug: false
@@ -144,8 +145,9 @@ KaProxy 只转发结构化内容，不保存消息模板。加入、退出、公
 
 | 配置项 | 默认值 | 说明 |
 |--------|--------|------|
-| `modules.lastseen.enabled` | `true` | 是否启用上次下线位置自动前往。 |
-| `modules.lastseen.connect-directly` | `true` | 初次连接时是否直接把玩家连到上次所在子服（消除双重进服）。 |
+| `modules.lastseen.enabled` | `true` | 是否启用上次下线位置。 |
+| `modules.lastseen.mode` | `direct` | `direct`=直接进离线服；`manual`=进默认服后弹窗确定；`auto`=进默认服后延迟自动传送。 |
+| `modules.lastseen.join-delay-seconds` | `5` | 仅 `auto`：登录后延迟多少秒再传送（给资源包下载留时间）。 |
 | `modules.lastseen.default-server` | `lobby` | 目标世界无效时回退的默认子服；留空表示停留在当前子服。 |
 | `modules.lastseen.blacklist` | 空 | 不记录位置的子服列表（逗号分隔，大小写不敏感）。 |
 | `modules.lastseen.debug` | `false` | 是否记录位置更新、前往与回退的决策日志。 |

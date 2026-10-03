@@ -25,7 +25,8 @@ database:
 modules:
   lastseen:
     enabled: true
-    connect-directly: true
+    mode: direct
+    join-delay-seconds: 5
     default-server: "lobby"
     blacklist: "pve,pvp"
     debug: false
@@ -34,11 +35,24 @@ modules:
 | 配置项 | 默认值 | 说明 |
 |--------|--------|------|
 | `database.*` | - | 跨服位置数据库，须与各后端 KaLogin 指向同一库（复用 `kalogin`）。 |
-| `modules.lastseen.enabled` | `true` | 是否启用上次下线位置自动前往。 |
-| `modules.lastseen.connect-directly` | `true` | 初次连接时直接把玩家连到上次所在子服（见下节）。 |
+| `modules.lastseen.enabled` | `true` | 是否启用上次下线位置。 |
+| `modules.lastseen.mode` | `direct` | 三种模式，见下节。 |
+| `modules.lastseen.join-delay-seconds` | `5` | 仅 `auto`：登录完成后延迟多少秒再传送（给资源包下载留时间）。 |
 | `modules.lastseen.default-server` | `lobby` | 目标世界无效时回退的默认子服；留空表示停留在当前子服。 |
 | `modules.lastseen.blacklist` | 空 | 不记录位置的子服列表（逗号分隔，大小写不敏感）。 |
 | `modules.lastseen.debug` | `false` | 是否记录位置更新、前往与回退的决策日志。 |
+
+## 模式
+
+`modules.lastseen.mode` 控制玩家如何回到上次位置：
+
+- **`direct`（默认）**：**直接进离线服**。初次连接时异步读库，直接把初始服务器设为上次所在子服，登录完成后传送坐标，全程无询问，也不经过默认服。
+- **`manual`**：**手动确定**。初次连接一律进入代理默认服（通常为 Lobby）；登录完成后，代理向后端下发 `offer`，后端延迟 `join-delay-seconds` 秒后弹出"是否返回上次位置"确认框（确定/取消）。
+  - **确定** → 后端回传 `confirm`，代理读记录、切回上次子服并投递坐标。
+  - **取消** → 后端回传 `decline`，**保留记录**并停留在当前服，下次登录仍会询问。
+- **`auto`**：**间接自动**。初次连接先正常进入代理默认服（通常为 Lobby）；登录成功后，代理等待 `join-delay-seconds` 秒再自动读记录、切回上次子服并传送坐标，无询问。延迟用于让玩家先在 Lobby 完成资源包下载。
+
+> 模式开关只在代理端配置，后端无需配置。`manual`/`auto` 都会先经过默认服。
 
 ## 位置黑名单
 
@@ -67,11 +81,15 @@ modules:
 
 1. 玩家退服或切服时，后端 KaLogin 把坐标写入共享库 `kalogin_lastseen`（按 `updated_at` 单调，切服乱序不会写回旧位置）。
 2. 玩家真正离开代理时，代理把其所在子服写入记录的 `server` 列；若该子服在 `blacklist` 中则删除整条记录。
-3. 玩家下次连接时，代理异步读库：记录存在、`server` 非空、未命中黑名单且该子服已探活在线，则把初始服务器设为该子服。
-4. 玩家在该子服完成登录/跨服恢复，认证完成后后端发送 `lastseen/ready`。
-5. 记录服等于当前服（直连命中）时，代理只通知当前服传送坐标；不同（直连未命中，如记录服离线后恢复）时按跨服兜底切换。
-6. 世界不存在或坐标越界时，目标服发送 `lastseen/abort`，代理把玩家回退到 `default-server`（未配置则停留在当前服）。
-7. `/logout`、注销会删除该玩家的记录。
+3. 玩家下次连接：
+   - **direct**：代理异步读库，记录存在、`server` 非空、未命中黑名单且该子服已探活在线，则把初始服务器设为该子服。
+   - **manual / auto**：一律进入默认服。
+4. 玩家完成登录/跨服恢复，认证完成后后端发送 `lastseen/ready`：
+   - **direct**：代理立即读记录并前往（初始服已是目标服，通常只需传送坐标）。
+   - **manual**：代理读记录并下发 `offer`，后端延迟后弹窗；玩家确认后回传 `confirm`，代理再前往。
+   - **auto**：代理等待 `join-delay-seconds` 秒后读记录并前往（延迟结束时重新解析在线玩家）。
+5. 世界不存在或坐标越界时，目标服发送 `lastseen/abort`，代理把玩家回退到 `default-server`（未配置则停留在当前服）。
+6. `/logout`、注销会删除该玩家的记录。
 
 ## 协议动作
 
@@ -79,10 +97,13 @@ modules:
 
 - `lastseen/ready`：uuid。
 - `lastseen/abort`：uuid。
+- `lastseen/confirm`：uuid（手动模式，玩家选择返回）。
+- `lastseen/decline`：uuid（手动模式，玩家选择不返回）。
 
 代理 → 目标后端：
 
 - `lastseen/teleport`：uuid、世界、x、y、z、yaw、pitch。
+- `lastseen/offer`：uuid、延迟秒数、目标子服名（手动模式，后端据此弹窗）。
 
 > 坐标不再经代理中转：后端直接写库，代理只读。
 

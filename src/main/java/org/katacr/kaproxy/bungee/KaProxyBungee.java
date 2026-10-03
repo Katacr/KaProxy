@@ -96,10 +96,10 @@ public final class KaProxyBungee extends Plugin implements Listener {
         });
     }
 
-    /** 玩家连接子服后同步在线状态并交付到达凭证（BungeeCord 事件不提供切换前子服，传 null 由核心推断）。 */
+    /** 玩家连接子服后同步在线状态并交付到达凭证（BungeeCord 不提供前服，允许核心受限推断）。 */
     @EventHandler
     public void onServerConnected(ServerConnectedEvent event) {
-        core.playerConnected(new BungeePlayer(getProxy(), event.getPlayer()), null);
+        core.playerConnected(new BungeePlayer(getProxy(), event.getPlayer()), null, false);
     }
 
     /** 玩家离开代理时取消其参与的临时事务。 */
@@ -149,6 +149,8 @@ public final class KaProxyBungee extends Plugin implements Listener {
                         "guilds", language.text(config.guildsEnabled() ? "enabled" : "disabled"),
                         "tpa", language.text(config.tpaEnabled() ? "enabled" : "disabled"),
                         "back", language.text(config.backEnabled() ? "enabled" : "disabled"),
+                        "customteleport", language.text(config.customTeleportEnabled() ? "enabled" : "disabled"),
+                        "custommessage", language.text(config.customMessageEnabled() ? "enabled" : "disabled"),
                         "kamenu", language.text(config.kamenuEnabled() ? "enabled" : "disabled"),
                         "broadcast", language.text(config.broadcastEnabled() ? "enabled" : "disabled"),
                         "kalogin", language.text(config.kaloginEnabled() ? "enabled" : "disabled"),

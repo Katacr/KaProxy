@@ -5,7 +5,7 @@ KaProxy's `broadcast` module provides KaBroadcast backends with group announceme
 ## Responsibility Boundary
 
 - KaProxy determines real entry to and exit from the proxy network, validates the protocol, and forwards structured content.
-- KaProxy does not store join, quit, announcement, or death templates.
+- KaProxy does not store join, quit, announcement, or death templates; it only briefly caches backend-rendered quit snapshots for the last player leaving a backend.
 - Each KaBroadcast backend renders the final message from its own configuration, allowing different languages and styles per backend.
 - Every backend participating in group messages should install and enable KaBroadcast.
 
@@ -36,6 +36,8 @@ Switch detection uses platform events (Velocity `ServerPostConnectEvent.getPrevi
 
 The KaBroadcast backend suppresses Bukkit's native join and quit messages and displays the proxy event using its local template.
 
+While a player is online, the backend uploads a `quit_snapshot`. A live `quit_prepare` at logout is preferred; when no other player can carry that Plugin Messaging packet from the source backend, the proxy uses the snapshot after confirming the disconnect so the last player's quit message is not lost.
+
 ## Targeted Announcements
 
 A backend can request that an announcement be sent to a single player via `broadcast/publish_targeted`. KaProxy resolves the target player by name and sends `broadcast/announcement_targeted` only to that player's backend, which renders and delivers it to the target with the Bukkit API.
@@ -54,6 +56,7 @@ Backend to proxy:
 - `broadcast/publish_targeted`: targeted announcement with `eventId`, target player name, sender, and message.
 - `broadcast/death`: death event with `eventId`, player UUID, player name, plain-text fallback, and component JSON.
 - `broadcast/switch_publish`: the switch result rendered by the destination backend.
+- `broadcast/quit_snapshot`: a rendered quit payload uploaded while the player is online, used only when a real disconnect has no `quit_prepare`.
 
 Proxy to backend:
 

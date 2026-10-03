@@ -70,7 +70,8 @@ modules:
 
   lastseen:
     enabled: true
-    connect-directly: true
+    mode: direct
+    join-delay-seconds: 5
     default-server: "lobby"
     blacklist: "pve,pvp"
     debug: false

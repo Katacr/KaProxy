@@ -25,7 +25,8 @@ database:
 modules:
   lastseen:
     enabled: true
-    connect-directly: true
+    mode: direct
+    join-delay-seconds: 5
     default-server: "lobby"
     blacklist: "pve,pvp"
     debug: false
@@ -35,10 +36,23 @@ modules:
 |--------|---------|-------------|
 | `database.*` | - | Cross-server position database; must point at the same DB as every KaLogin backend (reuse `kalogin`). |
 | `modules.lastseen.enabled` | `true` | Enable returning to the last server and position. |
-| `modules.lastseen.connect-directly` | `true` | Connect the player directly to their last backend on first join (see below). |
+| `modules.lastseen.mode` | `direct` | One of three modes, see below. |
+| `modules.lastseen.join-delay-seconds` | `5` | `auto` only: delay before traveling after login (time for the resource pack). |
 | `modules.lastseen.default-server` | `lobby` | Backend to fall back to when the target world is invalid; empty keeps the player on the current backend. |
 | `modules.lastseen.blacklist` | empty | Backends whose positions are never stored (comma-separated, case-insensitive). |
 | `modules.lastseen.debug` | `false` | Log position update, travel, and fallback decisions. |
+
+## Modes
+
+`modules.lastseen.mode` controls how a player returns to their last position:
+
+- **`direct` (default)**: **straight to the last backend**. On first connection the proxy reads the DB and sets the initial server to the last backend, then teleports after login. No prompt, and the default server is skipped.
+- **`manual`**: **prompt to confirm**. The player always lands on the proxy's default server (usually Lobby). After login the proxy sends `offer`; the backend waits `join-delay-seconds` and then shows a "return to last position?" confirmation (Confirm/Cancel).
+  - **Confirm** → the backend replies `confirm`; the proxy reads the record, switches back, and delivers the coordinates.
+  - **Cancel** → the backend replies `decline`; the record is **kept** and the player stays, so the prompt appears again next login.
+- **`auto`**: **delayed auto travel**. The player lands on the default server (usually Lobby) as normal; after login the proxy waits `join-delay-seconds` and then reads the record, switches back, and teleports. No prompt. The delay lets the resource pack finish downloading on Lobby.
+
+> The mode is configured on the proxy only; backends need no configuration. Both `manual` and `auto` pass through the default server first.
 
 ## Position Blacklist
 
@@ -67,11 +81,15 @@ This avoids the double join caused by "land on the default server (Lobby), then 
 
 1. When the player leaves or switches a backend, the KaLogin backend writes the coordinates to the shared `kalogin_lastseen` table (monotonic by `updated_at`, so out-of-order switch events cannot restore an old position).
 2. When the player truly disconnects from the proxy, the proxy writes the current backend into the record's `server` column; if that backend is in `blacklist`, the whole record is deleted.
-3. On the next connection, the proxy reads the record asynchronously: if it exists, `server` is non-empty, it is not blacklisted, and that backend is confirmed online, it becomes the initial server.
-4. The player logs in or restores the session on that backend, then sends `lastseen/ready`.
-5. If the recorded backend equals the current one (direct hit), the proxy only tells that backend to teleport; otherwise (direct miss, for example the backend came back online) it uses the cross-server fallback switch.
-6. If the world does not exist or the coordinates are out of range, the backend sends `lastseen/abort` and the proxy moves the player to `default-server` (or keeps them if not configured).
-7. `/logout` and unregister delete the record.
+3. On the next connection:
+   - **direct**: the proxy reads the record asynchronously; if it exists, `server` is non-empty, it is not blacklisted, and that backend is confirmed online, it becomes the initial server.
+   - **manual / auto**: the player always lands on the default server.
+4. The player logs in or restores the session, then sends `lastseen/ready`:
+   - **direct**: the proxy reads the record and travels immediately (the initial backend is already the target, so usually only the coordinates are delivered).
+   - **manual**: the proxy reads the record and sends `offer`; the backend prompts after the delay, and on Confirm replies `confirm` so the proxy travels.
+   - **auto**: the proxy waits `join-delay-seconds` and then reads the record and travels (re-resolving the online player when the delay elapses).
+5. If the world does not exist or the coordinates are out of range, the backend sends `lastseen/abort` and the proxy moves the player to `default-server` (or keeps them if not configured).
+6. `/logout` and unregister delete the record.
 
 ## Protocol Actions
 
@@ -79,10 +97,13 @@ Backend to proxy:
 
 - `lastseen/ready`: uuid.
 - `lastseen/abort`: uuid.
+- `lastseen/confirm`: uuid (manual mode, player chose to return).
+- `lastseen/decline`: uuid (manual mode, player chose not to return).
 
 Proxy to target backend:
 
 - `lastseen/teleport`: uuid, world, x, y, z, yaw, pitch.
+- `lastseen/offer`: uuid, delay seconds, target backend name (manual mode; the backend prompts on it).
 
 > Coordinates no longer travel through the proxy: backends write them straight to the database and the proxy only reads.
 

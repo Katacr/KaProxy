@@ -5,7 +5,7 @@ KaProxy 的 `broadcast` 模块为 KaBroadcast 后端提供群组公告、统一�
 ## 职责边界
 
 - KaProxy 只负责判断真实代理网络进出、校验协议和转发结构化内容。
-- KaProxy 不保存加入、退出、公告或死亡消息模板。
+- KaProxy 不保存加入、退出、公告或死亡消息模板；它只会短暂缓存后端已渲染的退出快照，供源服最后一名玩家离开时使用。
 - 每个子服的 KaBroadcast 独立配置最终显示文本，因此可以按子服语言和风格定制。
 - 所有参与群组公共消息的后端都应安装并启用 KaBroadcast。
 
@@ -36,6 +36,8 @@ KaProxy 保存在线玩家当前所在后端：
 
 KaBroadcast 后端负责屏蔽 Bukkit 原生加入和退出消息，并使用本地模板显示代理事件。
 
+后端在玩家仍在线时上传 `quit_snapshot`。正常退出优先使用退出瞬间的 `quit_prepare`；源服没有其他在线玩家可作为 Plugin Messaging 载体时，代理在确认断开后使用快照，避免最后一名玩家离开时遗漏消息。
+
 ## 定向公告
 
 后端可用 `broadcast/publish_targeted` 请求把公告只发给某个玩家。KaProxy 按名称解析目标玩家，仅向该玩家所在后端发送 `broadcast/announcement_targeted`，由该后端渲染并使用 Bukkit API 投递给目标玩家。
@@ -54,6 +56,7 @@ KaBroadcast 后端读取 Bukkit 最终死亡文本，屏蔽本服原生死亡消
 - `broadcast/publish_targeted`：定向公告，负载为 `eventId`、目标玩家名称、发送者和消息。
 - `broadcast/death`：死亡事件，负载为 `eventId`、玩家 UUID、玩家名称、纯文本回退值和组件 JSON。
 - `broadcast/switch_publish`：目标后端渲染完成的切服结果。
+- `broadcast/quit_snapshot`：玩家在线时上传的已渲染退出载荷，仅用于真实断开且未收到 `quit_prepare` 时的兜底。
 
 代理转发：
 

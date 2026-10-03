@@ -43,6 +43,19 @@ modules:
     # 返回事务的切服与落点交付超时。
     transaction-timeout-seconds: 30
 
+  customteleport:
+    # 第三方插件专用跨服传送模块。
+    # 后端提交 customteleport/transfer（目标子服 + 世界 + 坐标），
+    # 代理切服后下发 customteleport/arrival，由目标后端完成落点传送。
+    enabled: true
+    # 传送事务的切服与落点交付超时。
+    transaction-timeout-seconds: 30
+
+  custommessage:
+    # 第三方插件专用跨服消息模块。
+    # 后端提交 custommessage/send（范围 + 频道 + 消息），代理转发给其他后端。
+    enabled: true
+
   kamenu:
     # KaMenu 跨服动作转发模块。
     enabled: true
@@ -74,10 +87,15 @@ modules:
     debug: false
 
   lastseen:
-    # 上次下线位置模块：玩家登录后自动回到上次下线的子服与坐标。
+    # 上次下线位置模块：玩家登录后回到上次下线的子服与坐标。
     enabled: true
-    # 初次连接时直接把玩家连到上次所在子服，避免先落默认服再切换造成的双重进服。
-    connect-directly: true
+    # 模式：
+    #   direct = 直接进离线服：初次连接即由代理把玩家指定到上次所在子服，登录后传送坐标。
+    #   manual = 手动确定：先正常进默认服，登录完成后弹窗询问是否返回，玩家点“确定”才前往。
+    #   auto   = 间接自动：先正常进默认服，登录成功后等待 join-delay-seconds 秒再自动传送到目标服。
+    mode: direct
+    # auto 模式下，登录完成后延迟多少秒再传送（给资源包下载留时间）。
+    join-delay-seconds: 5
     # 目标位置所在世界无效时回退到的默认子服；留空表示停留在当前子服。
     default-server: "lobby"
     # 不记录上次位置的子服列表（逗号分隔）；从这些子服下线时清除记录，下次登录回默认服。

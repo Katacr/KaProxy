@@ -163,11 +163,101 @@ final class LastSeenModuleTest {
         assertTrue(blacklisted.initialServerFor(playerId).get().isEmpty());
     }
 
+    @Test
+    void manualModeDoesNotConnectDirectly() throws Exception {
+        LastSeenModule manual = new LastSeenModule(adapter, repository,
+                configWithMode("manual", ""), language);
+        UUID playerId = UUID.randomUUID();
+        repository.put(playerId, new LastSeenRepository.Record("survival", "world", 10, 64, 20, 90f, 0f));
+        assertTrue(manual.initialServerFor(playerId).get().isEmpty());
+    }
+
+    @Test
+    void manualReadySendsOfferInsteadOfTravel() throws Exception {
+        LastSeenModule manual = new LastSeenModule(adapter, repository,
+                configWithMode("manual", ""), language);
+        UUID playerId = UUID.randomUUID();
+        FakePlayer carrier = new FakePlayer(playerId, "Alex", "lobby");
+        repository.put(playerId, new LastSeenRepository.Record("survival", "world", 10, 64, 20, 90f, 0f));
+        manual.handle(carrier, "lobby", "ready", decode(uuidPayload(playerId)));
+        assertEquals(List.of("offer"), adapter.actions());
+        assertNull(carrier.connectedTo);
+    }
+
+    @Test
+    void manualConfirmTravelsToRecordedServer() throws Exception {
+        LastSeenModule manual = new LastSeenModule(adapter, repository,
+                configWithMode("manual", ""), language);
+        UUID playerId = UUID.randomUUID();
+        FakePlayer carrier = new FakePlayer(playerId, "Alex", "lobby");
+        repository.put(playerId, new LastSeenRepository.Record("survival", "world", 10, 64, 20, 90f, 0f));
+        manual.handle(carrier, "lobby", "confirm", decode(uuidPayload(playerId)));
+        assertEquals("survival", carrier.connectedTo);
+        assertEquals(List.of("teleport"), adapter.actions());
+    }
+
+    @Test
+    void manualDeclineStaysAndKeepsRecord() throws Exception {
+        LastSeenModule manual = new LastSeenModule(adapter, repository,
+                configWithMode("manual", ""), language);
+        UUID playerId = UUID.randomUUID();
+        FakePlayer carrier = new FakePlayer(playerId, "Alex", "lobby");
+        repository.put(playerId, new LastSeenRepository.Record("survival", "world", 10, 64, 20, 90f, 0f));
+        manual.handle(carrier, "lobby", "decline", decode(uuidPayload(playerId)));
+        assertNull(carrier.connectedTo);
+        assertEquals(List.of(), adapter.actions());
+        assertEquals("survival", repository.serverFor(playerId));
+    }
+
+    @Test
+    void manualModeWithoutRecordSendsNoOffer() throws Exception {
+        LastSeenModule manual = new LastSeenModule(adapter, repository,
+                configWithMode("manual", ""), language);
+        UUID playerId = UUID.randomUUID();
+        FakePlayer carrier = new FakePlayer(playerId, "Alex", "lobby");
+        manual.handle(carrier, "lobby", "ready", decode(uuidPayload(playerId)));
+        assertEquals(List.of(), adapter.actions());
+    }
+
+    @Test
+    void autoModeDoesNotConnectDirectly() throws Exception {
+        LastSeenModule auto = new LastSeenModule(adapter, repository,
+                configWithMode("auto", ""), language);
+        UUID playerId = UUID.randomUUID();
+        repository.put(playerId, new LastSeenRepository.Record("survival", "world", 10, 64, 20, 90f, 0f));
+        assertTrue(auto.initialServerFor(playerId).get().isEmpty());
+    }
+
+    @Test
+    void autoModeTravelsAfterReady() throws Exception {
+        LastSeenModule auto = new LastSeenModule(adapter, repository,
+                configWithMode("auto", ""), language);
+        UUID playerId = UUID.randomUUID();
+        FakePlayer carrier = new FakePlayer(playerId, "Alex", "lobby");
+        adapter.register(carrier);
+        repository.put(playerId, new LastSeenRepository.Record("survival", "world", 10, 64, 20, 90f, 0f));
+        auto.handle(carrier, "lobby", "ready", decode(uuidPayload(playerId)));
+        // FakeAdapter.schedule 立即执行，等价于延迟结束
+        assertEquals("survival", carrier.connectedTo);
+        assertEquals(List.of("teleport"), adapter.actions());
+    }
+
+    @Test
+    void directModeConnectsDirectly() throws Exception {
+        UUID playerId = UUID.randomUUID();
+        repository.put(playerId, new LastSeenRepository.Record("survival", "world", 10, 64, 20, 90f, 0f));
+        assertEquals("survival", module.initialServerFor(playerId).get().orElse(null));
+    }
+
     private KaProxyConfig configWithBlacklist(String blacklist) throws Exception {
-        Path directory = temporaryDirectory.resolve("bl-" + (blacklist.isEmpty() ? "none" : blacklist.replace(',', '_')));
+        return configWithMode("direct", blacklist);
+    }
+
+    private KaProxyConfig configWithMode(String mode, String blacklist) throws Exception {
+        Path directory = temporaryDirectory.resolve("cfg-" + mode + "-" + (blacklist.isEmpty() ? "none" : blacklist.replace(',', '_')));
         return KaProxyConfig.load(directory,
                 new ByteArrayInputStream(("modules:\n  lastseen:\n    enabled: true\n    default-server: lobby\n"
-                        + "    blacklist: " + blacklist + "\n").getBytes(StandardCharsets.UTF_8)));
+                        + "    mode: " + mode + "\n    blacklist: " + blacklist + "\n").getBytes(StandardCharsets.UTF_8)));
     }
 
     private byte[] uuidPayload(UUID playerId) throws IOException {
@@ -221,9 +311,14 @@ final class LastSeenModuleTest {
 
     private static final class FakeAdapter implements ProxyAdapter {
         private final List<byte[]> packets = new ArrayList<>();
+        private final Map<UUID, ProxyPlayer> online = new ConcurrentHashMap<>();
 
         private void clear() {
             packets.clear();
+        }
+
+        private void register(ProxyPlayer player) {
+            online.put(player.uniqueId(), player);
         }
 
         private List<String> actions() throws IOException {
@@ -237,10 +332,10 @@ final class LastSeenModuleTest {
         @Override public Collection<? extends ProxyPlayer> players() { return List.of(); }
         @Override public Collection<String> servers() { return List.of(); }
         @Override public void pingServers(Consumer<Map<String, Boolean>> callback) { callback.accept(Map.of()); }
-        @Override public Optional<? extends ProxyPlayer> player(UUID playerId) { return Optional.empty(); }
+        @Override public Optional<? extends ProxyPlayer> player(UUID playerId) { return Optional.ofNullable(online.get(playerId)); }
         @Override public void broadcast(String channel, byte[] data, String excludedServer) { packets.add(data); }
         @Override public void broadcastToServer(String channel, byte[] data, String targetServer) { packets.add(data); }
-        @Override public void schedule(Runnable task, long delayMillis) { }
+        @Override public void schedule(Runnable task, long delayMillis) { task.run(); }
         @Override public void info(String message) { }
         @Override public void error(String message, Throwable error) { throw new AssertionError(message, error); }
     }

@@ -57,7 +57,8 @@ modules:
 
   lastseen:
     enabled: true
-    connect-directly: true
+    mode: direct
+    join-delay-seconds: 5
     default-server: "lobby"
     blacklist: "pve,pvp"
     debug: false
@@ -145,7 +146,8 @@ See [KaLogin Cross-Server Session](modules/kalogin.md).
 | Setting | Default | Description |
 |---------|---------|-------------|
 | `modules.lastseen.enabled` | `true` | Enables returning to the last server and position. |
-| `modules.lastseen.connect-directly` | `true` | Connect the player directly to their last backend on first join (removes the double join). |
+| `modules.lastseen.mode` | `direct` | `direct`=straight to the last backend; `manual`=land on default then prompt; `auto`=land on default then delayed auto travel. |
+| `modules.lastseen.join-delay-seconds` | `5` | `auto` only: delay before traveling after login (time for the resource pack). |
 | `modules.lastseen.default-server` | `lobby` | Backend to fall back to when the target world is invalid; empty keeps the player on the current backend. |
 | `modules.lastseen.blacklist` | empty | Backends whose positions are never stored (comma-separated, case-insensitive). |
 | `modules.lastseen.debug` | `false` | Logs position update, travel, and fallback decisions. |

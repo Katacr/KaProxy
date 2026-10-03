@@ -27,6 +27,14 @@ public final class BroadcastModule {
     private final Map<UUID, Long> recentEvents = new HashMap<>();
     private final Map<UUID, String> pendingSwitches = new HashMap<>();
     private final Map<UUID, PendingQuit> pendingQuits = new HashMap<>();
+    // 玩家仍在线时由后端上传的退出渲染快照，解决源服最后一人无消息载体的问题。
+    private final Map<UUID, QuitSnapshot> quitSnapshots = new HashMap<>();
+    // 当前会话已广播过退出，防止 DisconnectEvent 与迟到快照重复发送。
+    private final Map<UUID, Long> forwardedQuitSessions = new HashMap<>();
+    // 每次代理会话/子服连接递增，防止旧断开任务删除快速重连后的新拓扑。
+    private final Map<UUID, Long> playerSessions = new HashMap<>();
+    // 标记已收到代理级断开；Bungee 下次连接不能再使用残留拓扑推断为切服。
+    private final Map<UUID, Long> disconnectedSessions = new HashMap<>();
 
     /** 创建群组公共消息模块。 */
     public BroadcastModule(ProxyAdapter adapter, KaProxyConfig config, KaProxyLanguage language) {
@@ -48,6 +56,10 @@ public final class BroadcastModule {
         recentEvents.clear();
         pendingSwitches.clear();
         pendingQuits.clear();
+        quitSnapshots.clear();
+        forwardedQuitSessions.clear();
+        playerSessions.clear();
+        disconnectedSessions.clear();
     }
 
     /** 用代理快照校准玩家拓扑。 */
@@ -59,29 +71,55 @@ public final class BroadcastModule {
         }
         playerServers.clear();
         playerServers.putAll(current);
+        playerSessions.keySet().removeIf(playerId -> !current.containsKey(playerId));
+        disconnectedSessions.keySet().removeIf(playerId -> !current.containsKey(playerId));
+        quitSnapshots.keySet().removeIf(playerId -> !current.containsKey(playerId));
+        forwardedQuitSessions.keySet().removeIf(playerId -> !current.containsKey(playerId));
+        for (UUID playerId : current.keySet()) {
+            playerSessions.putIfAbsent(playerId, 0L);
+        }
     }
 
     /**
      * 代理平台连接事件回调（Velocity ServerPostConnectEvent / Bungee ServerConnectedEvent）。
      *
-     * previousServer 为 Velocity 提供的切换前子服（新会话为 null；Bungee 无此信息传 null，
-     * 由内部从拓扑和待定退出推断）。判定为切服时记录来源服，等待目标服的 join_prepare
-     * 触发 switch_request；全新会话则清理残留状态，保证之后转发 player_join 而非切换消息。
+     * 兼容缺少 previousServer 可靠性标记的旧调用；仅 Bungee 应走此分支并允许拓扑推断。
      */
     public synchronized void playerConnected(ProxyPlayer player, String previousServer) {
+        playerConnected(player, previousServer, false);
+    }
+
+    /**
+     * 代理平台连接事件回调（Velocity ServerPostConnectEvent / Bungee ServerConnectedEvent）。
+     *
+     * previousServerKnown 为 true 时，null 是 Velocity 明确给出的“新代理会话”事实，绝不能
+     * 回退到旧拓扑；Bungee 不提供此前服务器，因此传 false 后才允许从拓扑推断切服来源。
+     */
+    public synchronized void playerConnected(ProxyPlayer player, String previousServer, boolean previousServerKnown) {
         if (!config.broadcastEnabled()) return;
         UUID playerId = player.uniqueId();
         String currentServer = player.serverName();
+        playerSessions.merge(playerId, 1L, Long::sum);
+        forwardedQuitSessions.remove(playerId);
+        boolean reconnectedAfterDisconnect = disconnectedSessions.remove(playerId) != null;
         PendingQuit pendingQuit = pendingQuits.remove(playerId);
-        String from = previousServer;
-        if (from == null) from = pendingSwitches.remove(playerId);
+        String pendingSwitch = pendingSwitches.remove(playerId);
+        if ((previousServerKnown && previousServer == null) || reconnectedAfterDisconnect) {
+            // Velocity 明确无前服或已经观察到代理断开，均为新会话，禁止残留拓扑伪造切服。
+            playerServers.remove(playerId);
+            quitSnapshots.remove(playerId);
+            if (!currentServer.isBlank()) playerServers.put(playerId, currentServer);
+            debug(() -> "平台确认新会话: player=" + player.name() + ", to=" + currentServer);
+            return;
+        }
+        String from = previousServerKnown ? previousServer : pendingSwitch;
         if (from == null && pendingQuit != null) from = pendingQuit.server();
         if (from == null) from = playerServers.get(playerId);
-        pendingQuits.remove(playerId);
         if (from != null && !from.isBlank() && !from.equals(currentServer)) {
             // 切服（平台事件铁证）：等待目标服 join_prepare 后渲染切换消息。
             String finalFrom = from;
             pendingSwitches.put(playerId, finalFrom);
+            quitSnapshots.remove(playerId);
             debug(() -> "平台确认切服: player=" + player.name() + ", from=" + finalFrom + ", to=" + currentServer);
         } else {
             // 首次进入或断线重连：清理残留，join_prepare 将转发 player_join。
@@ -92,21 +130,37 @@ public final class BroadcastModule {
     }
 
     /**
-     * 玩家真正离开代理（DisconnectEvent）：立即确认观察期中的退出转发，
+     * 玩家真正离开代理（DisconnectEvent）：这是唯一可确认真实退出的平台代理信号。
      * 拓扑延迟删除，给迟到的 quit_prepare（经同服其他玩家载体）留出发送窗口。
      */
     public synchronized void playerDisconnected(ProxyPlayer player) {
         UUID playerId = player.uniqueId();
         pendingSwitches.remove(playerId);
-        PendingQuit pending = pendingQuits.remove(playerId);
+        long session = playerSessions.getOrDefault(playerId, 0L);
+        disconnectedSessions.put(playerId, session);
+        PendingQuit pending = pendingQuits.get(playerId);
         if (pending != null) {
-            confirmQuit(pending);
+            quitSnapshots.remove(playerId);
+            confirmQuit(pending, true);
+        } else {
+            QuitSnapshot snapshot = quitSnapshots.remove(playerId);
+            if (snapshot != null && snapshot.server().equals(playerServers.get(playerId))) {
+                forwardQuitSnapshot(snapshot);
+            } else {
+                debug(() -> "DisconnectEvent 未收到实时 quit_prepare 且没有可用退出快照: player=" + player.name());
+            }
         }
-        if (playerServers.containsKey(playerId)) {
-            adapter.schedule(() -> {
-                if (adapter.player(playerId).isEmpty()) playerServers.remove(playerId);
-            }, TOPOLOGY_TTL_MILLIS);
-        }
+        adapter.schedule(() -> removeDisconnectedTopology(playerId, session), TOPOLOGY_TTL_MILLIS);
+    }
+
+    /** 仅删除未重连且仍离线的旧会话拓扑。 */
+    private synchronized void removeDisconnectedTopology(UUID playerId, long session) {
+        if (playerSessions.getOrDefault(playerId, -1L) != session || adapter.player(playerId).isPresent()) return;
+        playerServers.remove(playerId);
+        playerSessions.remove(playerId, session);
+        disconnectedSessions.remove(playerId, session);
+        quitSnapshots.remove(playerId);
+        forwardedQuitSessions.remove(playerId, session);
     }
 
     /** 解码并转发后端公共消息。 */
@@ -121,6 +175,7 @@ public final class BroadcastModule {
                 case "death" -> handleDeath(sourceServer, input);
                 case "join_prepare" -> handleJoinPrepare(sourceServer, input);
                 case "quit_prepare" -> handleQuitPrepare(sourceServer, input);
+                case "quit_snapshot" -> handleQuitSnapshot(sourceServer, input);
                 case "switch_publish" -> handleSwitchPublish(sourceServer, input);
                 default -> { if (config.logUnknownModules()) adapter.info(language.text("unknown-broadcast-action", Map.of("action", action))); }
             }
@@ -302,6 +357,12 @@ public final class BroadcastModule {
         float bossbarProgress = input.readFloat();
         int bossbarDuration = input.readInt();
         if (renderedText.isBlank() || alreadySeen(eventId)) return;
+        String actualServer = adapter.player(playerId).map(ProxyPlayer::serverName).orElse("");
+        if (!actualServer.isBlank() && !actualServer.equals(sourceServer)) {
+            debug(() -> "join_prepare 来源不是当前后端，丢弃迟到包: player=" + playerName
+                    + ", source=" + sourceServer + ", current=" + actualServer);
+            return;
+        }
         // 切服判定优先级：平台事件标记 > 待定退出 > 拓扑旧记录，覆盖任意消息到达顺序。
         String platformFrom = pendingSwitches.remove(playerId);
         PendingQuit pending = pendingQuits.remove(playerId);
@@ -361,13 +422,52 @@ public final class BroadcastModule {
                 bossbarColor, bossbarStyle, bossbarProgress, bossbarDuration);
     }
 
+    /** 缓存玩家在线时上传的退出渲染结果，供最后一名玩家断开时兜底使用。 */
+    private void handleQuitSnapshot(String sourceServer, DataInputStream input) throws IOException {
+        if (!config.broadcastConnectionMessagesEnabled()) return;
+        UUID playerId = KaProxyProtocol.readUuid(input);
+        String playerName = input.readUTF();
+        String reportedServer = input.readUTF();
+        String renderedText = input.readUTF();
+        String delivery = input.readUTF();
+        int titleFadeIn = input.readInt();
+        int titleStay = input.readInt();
+        int titleFadeOut = input.readInt();
+        String bossbarColor = input.readUTF();
+        String bossbarStyle = input.readUTF();
+        float bossbarProgress = input.readFloat();
+        int bossbarDuration = input.readInt();
+        if (renderedText.isBlank()) return;
+        if (!sourceServer.equals(reportedServer)) {
+            debug(() -> "quit_snapshot 自报服务器与代理来源不一致，使用代理来源: player=" + playerName
+                    + ", reported=" + reportedServer + ", source=" + sourceServer);
+        }
+        String actualServer = adapter.player(playerId).map(ProxyPlayer::serverName).orElse("");
+        String currentServer = playerServers.get(playerId);
+        if ((!actualServer.isBlank() && !actualServer.equals(sourceServer))
+                || (currentServer != null && !currentServer.equals(sourceServer))) {
+            debug(() -> "quit_snapshot 来源不是当前后端，丢弃: player=" + playerName
+                    + ", source=" + sourceServer + ", current=" + currentServer);
+            return;
+        }
+        QuitSnapshot snapshot = new QuitSnapshot(playerId, playerName, sourceServer, renderedText, delivery,
+                titleFadeIn, titleStay, titleFadeOut, bossbarColor, bossbarStyle, bossbarProgress, bossbarDuration);
+        if (adapter.player(playerId).isEmpty() && disconnectedSessions.containsKey(playerId)) {
+            debug(() -> "quit_snapshot 在 DisconnectEvent 后迟到，立即补发退出: player=" + playerName);
+            forwardQuitSnapshot(snapshot);
+            return;
+        }
+        quitSnapshots.put(playerId, snapshot);
+        debug(() -> "已缓存退出渲染快照: player=" + playerName + ", server=" + sourceServer);
+    }
+
     /** 处理后端发来的离开预渲染数据：真正退出 → 转发。 */
     private void handleQuitPrepare(String sourceServer, DataInputStream input) throws IOException {
         if (!config.broadcastConnectionMessagesEnabled()) return;
         UUID eventId = KaProxyProtocol.readUuid(input);
         UUID playerId = KaProxyProtocol.readUuid(input);
         String playerName = input.readUTF();
-        input.readUTF();
+        String reportedServer = input.readUTF();
         String renderedText = input.readUTF();
         String delivery = input.readUTF();
         int titleFadeIn = input.readInt();
@@ -378,34 +478,55 @@ public final class BroadcastModule {
         float bossbarProgress = input.readFloat();
         int bossbarDuration = input.readInt();
         if (renderedText.isBlank() || alreadySeen(eventId)) return;
+        if (!sourceServer.equals(reportedServer)) {
+            debug(() -> "quit_prepare 自报服务器与代理来源不一致，使用代理来源: player=" + playerName
+                    + ", reported=" + reportedServer + ", source=" + sourceServer);
+        }
+        String currentServer = playerServers.get(playerId);
+        if (currentServer == null) {
+            debug(() -> "quit_prepare 未命中拓扑（已清理或从未加入）: player=" + playerName);
+            return;
+        }
+        if (!sourceServer.equals(currentServer)) {
+            debug(() -> "quit_prepare 来源不是当前后端，丢弃迟到旧服包: player=" + playerName
+                    + ", source=" + sourceServer + ", current=" + currentServer);
+            return;
+        }
         if (pendingSwitches.containsKey(playerId)) {
             // 平台已确认切服（ServerPostConnectEvent previousServer 非空）：丢弃本次退出预渲染。
             debug(() -> "quit_prepare 命中切服标记，丢弃: player=" + playerName);
             return;
         }
-        String previous = playerServers.remove(playerId);
-        if (previous == null) {
-            debug(() -> "quit_prepare 未命中拓扑（已清理或从未加入）: player=" + playerName);
-            return;
-        }
-        // 玩家切服时旧服也会触发 PlayerQuitEvent 并送达 quit_prepare；
-        // 挂起等待平台信号（DisconnectEvent 确认真实退出 / ServerConnectedEvent 取消），超时兜底确认。
-        PendingQuit pending = new PendingQuit(eventId, playerId, playerName, previous, renderedText,
+        // 后端 quit_prepare 仅携带渲染结果；真实退出只能由 DisconnectEvent 确认。
+        // 超时仅处理已经离线但 DisconnectEvent/载体消息乱序的兜底，玩家仍在线时绝不转发。
+        PendingQuit pending = new PendingQuit(eventId, playerId, playerName, currentServer, renderedText,
                 delivery, titleFadeIn, titleStay, titleFadeOut,
                 bossbarColor, bossbarStyle, bossbarProgress, bossbarDuration);
         pendingQuits.put(playerId, pending);
-        debug(() -> "quit_prepare 挂起等待平台确认: player=" + playerName + ", server=" + previous);
-        adapter.schedule(() -> confirmQuit(pending), QUIT_CONFIRM_TIMEOUT_MILLIS);
+        debug(() -> "quit_prepare 挂起等待 DisconnectEvent: player=" + playerName + ", server=" + currentServer);
+        if (adapter.player(playerId).isEmpty()) {
+            confirmQuit(pending, false);
+        } else {
+            adapter.schedule(() -> confirmQuit(pending, false), QUIT_CONFIRM_TIMEOUT_MILLIS);
+        }
     }
 
-    /** 切换观察期结束时仍无该玩家的 join_prepare，则确认真实退出并转发。 */
-    private synchronized void confirmQuit(PendingQuit pending) {
+    /** 仅代理断开或确认玩家已离线时转发退出；绝不以固定时长推断离线。 */
+    private synchronized void confirmQuit(PendingQuit pending, boolean disconnectConfirmed) {
         if (!config.broadcastEnabled() || !config.broadcastConnectionMessagesEnabled()) return;
-        if (!pendingQuits.remove(pending.playerId(), pending)) {
-            debug(() -> "quit_prepare 观察期内检测到切服，取消退出转发: player=" + pending.playerName());
+        if (!disconnectConfirmed && adapter.player(pending.playerId()).isPresent()) {
+            debug(() -> "quit_prepare 超时但玩家仍在线，继续等待平台代理信号: player=" + pending.playerName());
             return;
         }
-        debug(() -> "quit_prepare 观察期结束确认真实退出，转发 player_quit: player=" + pending.playerName()
+        if (!pendingQuits.remove(pending.playerId(), pending)) {
+            debug(() -> "quit_prepare 已被切服或新会话取消: player=" + pending.playerName());
+            return;
+        }
+        if (!markQuitForwarded(pending.playerId())) {
+            debug(() -> "退出已广播，丢弃重复 quit_prepare: player=" + pending.playerName());
+            return;
+        }
+        debug(() -> "平台代理确认真实退出，转发 player_quit: player=" + pending.playerName()
                 + ", server=" + pending.server());
         try {
             forwardConnection("player_quit", pending.eventId(), pending.playerId(), pending.playerName(),
@@ -416,6 +537,32 @@ public final class BroadcastModule {
         } catch (IOException error) {
             adapter.error(language.text("broadcast-packet-failed", Map.of("server", pending.server())), error);
         }
+    }
+
+    /** 用在线阶段缓存的渲染结果补发退出，专用于源服没有可用消息载体的真实断开。 */
+    private void forwardQuitSnapshot(QuitSnapshot snapshot) {
+        if (!markQuitForwarded(snapshot.playerId())) {
+            debug(() -> "退出已广播，丢弃重复快照: player=" + snapshot.playerName());
+            return;
+        }
+        try {
+            debug(() -> "使用退出渲染快照转发 player_quit: player=" + snapshot.playerName()
+                    + ", server=" + snapshot.server());
+            forwardConnection("player_quit", UUID.randomUUID(), snapshot.playerId(), snapshot.playerName(),
+                    snapshot.server(), snapshot.renderedText(), snapshot.delivery(),
+                    snapshot.titleFadeIn(), snapshot.titleStay(), snapshot.titleFadeOut(),
+                    snapshot.bossbarColor(), snapshot.bossbarStyle(), snapshot.bossbarProgress(),
+                    snapshot.bossbarDuration());
+        } catch (IOException error) {
+            adapter.error(language.text("broadcast-packet-failed", Map.of("server", snapshot.server())), error);
+        }
+    }
+
+    /** 标记当前会话已经发出退出，避免实时载荷与迟到快照重复广播。 */
+    private boolean markQuitForwarded(UUID playerId) {
+        long session = playerSessions.getOrDefault(playerId, 0L);
+        Long previous = forwardedQuitSessions.put(playerId, session);
+        return previous == null || previous != session;
     }
 
     private void forwardConnection(String action, UUID eventId, UUID playerId, String playerName, String server,
@@ -480,5 +627,12 @@ public final class BroadcastModule {
                                int titleFadeIn, int titleStay, int titleFadeOut,
                                String bossbarColor, String bossbarStyle, float bossbarProgress,
                                int bossbarDuration) {
+    }
+
+    private record QuitSnapshot(UUID playerId, String playerName, String server,
+                                String renderedText, String delivery,
+                                int titleFadeIn, int titleStay, int titleFadeOut,
+                                String bossbarColor, String bossbarStyle, float bossbarProgress,
+                                int bossbarDuration) {
     }
 }

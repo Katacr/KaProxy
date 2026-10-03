@@ -128,6 +128,21 @@ public final class KaProxyConfig {
         return bool("modules.tpa.enabled", true);
     }
 
+    /** 返回第三方插件跨服传送模块是否启用。 */
+    public boolean customTeleportEnabled() {
+        return bool("modules.customteleport.enabled", true);
+    }
+
+    /** 返回第三方传送事务的切服与落点交付超时。 */
+    public int customTeleportTimeoutSeconds() {
+        return integer("modules.customteleport.transaction-timeout-seconds", 30, 5, 600);
+    }
+
+    /** 返回第三方插件跨服消息模块是否启用。 */
+    public boolean customMessageEnabled() {
+        return bool("modules.custommessage.enabled", true);
+    }
+
     /** 返回 /back 与 /dback 跨服返回模块是否启用。 */
     public boolean backEnabled() {
         return bool("modules.back.enabled", true);
@@ -256,9 +271,20 @@ public final class KaProxyConfig {
         return value == null ? "" : value.trim();
     }
 
-    /** 返回是否在初次连接时直接把玩家连到上次所在子服（消除先落默认服的双重进服）。 */
-    public boolean lastSeenConnectDirectly() {
-        return bool("modules.lastseen.connect-directly", true);
+    /**
+     * 返回 lastseen 模式：
+     * direct=初次连接直接连到上次所在子服并传送；
+     * manual=进默认服后弹窗询问；
+     * auto=先进默认服，登录后延迟再自动传送。
+     */
+    public String lastSeenMode() {
+        String value = values.get("modules.lastseen.mode");
+        return value == null ? "direct" : value.trim().toLowerCase();
+    }
+
+    /** 返回 auto 模式下登录完成后延迟多少秒再传送（给资源包下载留时间）。 */
+    public int lastSeenJoinDelaySeconds() {
+        return integer("modules.lastseen.join-delay-seconds", 5, 0, 600);
     }
 
     /** 返回不记录上次位置的子服名列表；从这些子服下线时按默认服处理。 */

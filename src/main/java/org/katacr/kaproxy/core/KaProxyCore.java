@@ -2,6 +2,8 @@ package org.katacr.kaproxy.core;
 
 import org.katacr.kaproxy.broadcast.BroadcastModule;
 import org.katacr.kaproxy.config.KaProxyConfig;
+import org.katacr.kaproxy.custom.CustomMessageModule;
+import org.katacr.kaproxy.custom.CustomTeleportModule;
 import org.katacr.kaproxy.i18n.KaProxyLanguage;
 import org.katacr.kaproxy.kalogin.KaloginModule;
 import org.katacr.kaproxy.lastseen.LastSeenModule;
@@ -32,6 +34,8 @@ public final class KaProxyCore {
     private final BroadcastModule broadcastModule;
     private final KaloginModule kaloginModule;
     private final LastSeenModule lastSeenModule;
+    private final CustomTeleportModule customTeleportModule;
+    private final CustomMessageModule customMessageModule;
     private final LastSeenRepository lastSeenRepository;
     // 子服在线状态缓存（子服名→是否可 ping 通）；空表示尚未探测，按在线乐观处理。
     private final Map<String, Boolean> serverStatus = new ConcurrentHashMap<>();
@@ -61,6 +65,8 @@ public final class KaProxyCore {
         this.broadcastModule = new BroadcastModule(adapter, config, language);
         this.lastSeenModule = new LastSeenModule(adapter, lastSeenRepository, config, language);
         this.kaloginModule = new KaloginModule(adapter, config, language, lastSeenModule::clear);
+        this.customTeleportModule = new CustomTeleportModule(adapter, config, language);
+        this.customMessageModule = new CustomMessageModule(adapter, config, language);
     }
 
     /** 启动后台周期任务（如旧公会在线列表广播）。应在代理初始化后调用一次。 */
@@ -129,6 +135,7 @@ public final class KaProxyCore {
         boolean disableBroadcast = this.config.broadcastEnabled() && !config.broadcastEnabled();
         boolean disableKalogin = this.config.kaloginEnabled() && !config.kaloginEnabled();
         boolean disableLastSeen = this.config.lastSeenEnabled() && !config.lastSeenEnabled();
+        boolean disableCustomTeleport = this.config.customTeleportEnabled() && !config.customTeleportEnabled();
         this.config = config;
         this.language = language;
         this.tpaModule.reload(config, language);
@@ -136,6 +143,8 @@ public final class KaProxyCore {
         this.broadcastModule.reload(config, language);
         this.kaloginModule.reload(config, language);
         this.lastSeenModule.reload(config, language);
+        this.customTeleportModule.reload(config, language);
+        this.customMessageModule.reload(config, language);
         if (disableTpa) {
             this.tpaModule.disable();
         }
@@ -150,6 +159,9 @@ public final class KaProxyCore {
         }
         if (disableLastSeen) {
             this.lastSeenModule.disable();
+        }
+        if (disableCustomTeleport) {
+            this.customTeleportModule.disable();
         }
     }
 
@@ -196,6 +208,9 @@ public final class KaProxyCore {
         if (config.backEnabled()) {
             backModule.playerDisconnected(player.uniqueId());
         }
+        if (config.customTeleportEnabled()) {
+            customTeleportModule.playerDisconnected(player.uniqueId());
+        }
         broadcastPresence();
         broadcastLegacyGuildPresence();
     }
@@ -203,11 +218,20 @@ public final class KaProxyCore {
     /**
      * 玩家连接目标子服后尝试交付等待中的一次性到达凭证。
      *
-     * previousServerName 为平台事件提供的切换前子服名（如 Velocity ServerPostConnectEvent），
-     * 全新进入代理或断线重连时为 null；Bungee 平台无此信息时也传 null，由模块从拓扑推断。
+     * 兼容未提供 previousServer 可靠性标记的平台调用；仅 Bungee 应使用该重载。
      */
     public void playerConnected(ProxyPlayer player, String previousServerName) {
-        broadcastModule.playerConnected(player, previousServerName);
+        playerConnected(player, previousServerName, false);
+    }
+
+    /**
+     * 玩家连接目标子服后同步在线状态并交付到达凭证。
+     *
+     * previousServerKnown 为 true 时，null 表示平台明确确认这是新代理会话；false 表示
+     * 平台未提供前服（Bungee），广播模块才允许使用本地拓扑推断切服来源。
+     */
+    public void playerConnected(ProxyPlayer player, String previousServerName, boolean previousServerKnown) {
+        broadcastModule.playerConnected(player, previousServerName, previousServerKnown);
         lastSeenModule.playerConnected(player);
         broadcastPresence();
         broadcastLegacyGuildPresence();
@@ -216,6 +240,9 @@ public final class KaProxyCore {
         }
         if (config.backEnabled()) {
             backModule.playerConnected(player);
+        }
+        if (config.customTeleportEnabled()) {
+            customTeleportModule.playerConnected(player);
         }
     }
 
@@ -272,6 +299,16 @@ public final class KaProxyCore {
                 case "back" -> {
                     if (config.backEnabled()) {
                         backModule.handle(carrier, sourceServer, packet.action(), packet.input());
+                    }
+                }
+                case "customteleport" -> {
+                    if (config.customTeleportEnabled()) {
+                        customTeleportModule.handle(carrier, sourceServer, packet.action(), packet.input());
+                    }
+                }
+                case "custommessage" -> {
+                    if (config.customMessageEnabled()) {
+                        customMessageModule.handle(carrier, sourceServer, packet.action(), packet.input());
                     }
                 }
                 case "kamenu" -> {

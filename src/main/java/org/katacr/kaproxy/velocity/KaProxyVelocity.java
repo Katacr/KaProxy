@@ -111,7 +111,7 @@ public final class KaProxyVelocity {
         if (core != null) {
             com.velocitypowered.api.proxy.server.RegisteredServer previous = event.getPreviousServer();
             String previousServer = previous == null ? null : previous.getServerInfo().getName();
-            core.playerConnected(new VelocityPlayer(server, event.getPlayer()), previousServer);
+            core.playerConnected(new VelocityPlayer(server, event.getPlayer()), previousServer, true);
         }
     }
 
@@ -166,6 +166,8 @@ public final class KaProxyVelocity {
                         "guilds", language.text(config.guildsEnabled() ? "enabled" : "disabled"),
                         "tpa", language.text(config.tpaEnabled() ? "enabled" : "disabled"),
                         "back", language.text(config.backEnabled() ? "enabled" : "disabled"),
+                        "customteleport", language.text(config.customTeleportEnabled() ? "enabled" : "disabled"),
+                        "custommessage", language.text(config.customMessageEnabled() ? "enabled" : "disabled"),
                         "kamenu", language.text(config.kamenuEnabled() ? "enabled" : "disabled"),
                         "broadcast", language.text(config.broadcastEnabled() ? "enabled" : "disabled"),
                         "kalogin", language.text(config.kaloginEnabled() ? "enabled" : "disabled"),

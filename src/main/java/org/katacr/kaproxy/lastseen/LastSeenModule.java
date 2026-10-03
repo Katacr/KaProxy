@@ -68,12 +68,27 @@ public final class LastSeenModule {
         repository.delete(playerId);
     }
 
+    /** 直接模式：代理在初次连接时就把玩家指定到上次所在子服。 */
+    private boolean isDirectMode() {
+        return "direct".equalsIgnoreCase(config.lastSeenMode());
+    }
+
+    /** 手动模式：先正常进默认服，登录后弹窗询问。 */
+    private boolean isManualMode() {
+        return "manual".equalsIgnoreCase(config.lastSeenMode());
+    }
+
+    /** 自动模式：先正常进默认服，登录成功后延迟再自动传送。 */
+    private boolean isAutoMode() {
+        return "auto".equalsIgnoreCase(config.lastSeenMode());
+    }
+
     /**
      * 初次连接时用于选择初始子服的推荐目标：异步读取记录所在服。
-     * 未启用、无记录、记录未确认（server 为空）或命中黑名单时返回空。
+     * 仅 direct 模式生效；未启用、无记录、记录未确认（server 为空）或命中黑名单时返回空。
      */
     public CompletableFuture<Optional<String>> initialServerFor(UUID playerId) {
-        if (!config.lastSeenEnabled() || !config.lastSeenConnectDirectly()) {
+        if (!config.lastSeenEnabled() || !isDirectMode()) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
         return repository.load(playerId)
@@ -95,6 +110,8 @@ public final class LastSeenModule {
             switch (action) {
                 case "ready" -> handleReady(carrier, input);
                 case "abort" -> handleAbort(carrier, input);
+                case "confirm" -> handleConfirm(carrier, input);
+                case "decline" -> handleDecline(carrier, input);
                 default -> {
                     if (config.logUnknownModules()) {
                         adapter.info(language.text("unknown-lastseen-action", Map.of("action", action)));
@@ -106,7 +123,12 @@ public final class LastSeenModule {
         }
     }
 
-    /** KaLogin 认证完成：读取记录，把玩家切回上次子服并投递坐标。 */
+    /**
+     * KaLogin 认证完成：按模式处理。
+     * direct：直接前往（初始服已是目标服，通常只需传送坐标）；
+     * manual：下发 offer，由后端延迟弹窗后回传 confirm/decline；
+     * auto：延迟 join-delay-seconds 秒后自动前往（先留在默认服下载资源包）。
+     */
     private void handleReady(ProxyPlayer carrier, DataInputStream input) throws IOException {
         UUID playerId = KaProxyProtocol.readUuid(input);
         if (carrier == null || !carrier.uniqueId().equals(playerId)) {
@@ -114,9 +136,47 @@ public final class LastSeenModule {
             return;
         }
         if (!traveled.add(playerId)) {
-            debug(() -> "本会话已处理过自动前往，忽略: player=" + carrier.name());
+            debug(() -> "本会话已处理过前往/询问，忽略: player=" + carrier.name());
             return;
         }
+        // 手动模式：不自动前往，改为向后端下发询问（后端延迟后弹窗）
+        if (isManualMode()) {
+            repository.load(playerId).thenAccept(record -> {
+                if (record.isEmpty() || isBlacklisted(record.get().server())) {
+                    debug(() -> "手动模式无可用记录，不询问: player=" + carrier.name());
+                    return;
+                }
+                sendOffer(carrier.serverName(), playerId, record.get());
+                debug(() -> "下发返回询问: player=" + carrier.name());
+            }).exceptionally(error -> {
+                debug(() -> "读取位置记录失败，不询问: " + error.getMessage());
+                return null;
+            });
+            return;
+        }
+        // 自动模式：先留在默认服，延迟后再前往
+        if (isAutoMode()) {
+            int delaySeconds = config.lastSeenJoinDelaySeconds();
+            if (delaySeconds > 0) {
+                debug(() -> "自动模式延迟 " + delaySeconds + " 秒后前往: player=" + carrier.name());
+                adapter.schedule(() -> {
+                    ProxyPlayer player = adapter.player(playerId).orElse(null);
+                    if (player == null) {
+                        debug(() -> "玩家已离线，取消延迟前往: " + playerId);
+                        return;
+                    }
+                    travelToRecord(player);
+                }, delaySeconds * 1000L);
+                return;
+            }
+        }
+        // direct 或 auto（延迟为 0）：立即前往
+        travelToRecord(carrier);
+    }
+
+    /** 读取记录并前往：同服则只传送坐标，否则切服后投递坐标。 */
+    private void travelToRecord(ProxyPlayer carrier) {
+        UUID playerId = carrier.uniqueId();
         repository.load(playerId).thenAccept(record -> {
             if (record.isEmpty()) {
                 debug(() -> "无位置记录，停留在当前服: player=" + carrier.name());
@@ -133,7 +193,7 @@ public final class LastSeenModule {
                 debug(() -> "同服传送: player=" + carrier.name() + ", server=" + current);
                 return;
             }
-            debug(() -> "自动前往: player=" + carrier.name() + ", from=" + current + ", to=" + position.server());
+            debug(() -> "前往: player=" + carrier.name() + ", from=" + current + ", to=" + position.server());
             carrier.connect(position.server(), success -> {
                 if (!success) {
                     debug(() -> "前往失败，停留在当前服: player=" + carrier.name() + ", target=" + position.server());
@@ -143,6 +203,22 @@ public final class LastSeenModule {
             debug(() -> "读取位置记录失败，停留在当前服: " + error.getMessage());
             return null;
         });
+    }
+
+    /** 手动模式：玩家点击“确定”返回上次位置（切服并投递坐标）。 */
+    private void handleConfirm(ProxyPlayer carrier, DataInputStream input) throws IOException {
+        UUID playerId = KaProxyProtocol.readUuid(input);
+        if (carrier == null || !carrier.uniqueId().equals(playerId)) {
+            debug(() -> "忽略载体不匹配的 confirm: " + playerId);
+            return;
+        }
+        travelToRecord(carrier);
+    }
+
+    /** 手动模式：玩家点击“取消”，保留记录并停留在当前服。 */
+    private void handleDecline(ProxyPlayer carrier, DataInputStream input) throws IOException {
+        UUID playerId = KaProxyProtocol.readUuid(input);
+        debug(() -> "玩家取消返回上次位置，保留记录: " + playerId);
     }
 
     /** 目标后端判定位置无效（世界不存在等）：把玩家回退到默认子服。 */
@@ -180,6 +256,26 @@ public final class LastSeenModule {
                 output.writeDouble(record.z());
                 output.writeFloat(record.yaw());
                 output.writeFloat(record.pitch());
+            });
+            adapter.broadcastToServer(KaProxyProtocol.CHANNEL, packet, server);
+        } catch (IOException error) {
+            adapter.error(language.text("lastseen-packet-failed", Map.of("server", server)), error);
+        }
+    }
+
+    /**
+     * 手动模式：向玩家当前所在后端下发询问包，由其立即弹出确认框。
+     * 负载为 uuid + 延迟秒数（手动模式固定 0，延迟仅供 auto 模式）+ 目标子服名（仅用于后端日志/提示）。
+     */
+    private void sendOffer(String server, UUID playerId, LastSeenRepository.Record record) {
+        if (server == null || server.isBlank()) {
+            return;
+        }
+        try {
+            byte[] packet = KaProxyProtocol.encode("lastseen", "offer", output -> {
+                KaProxyProtocol.writeUuid(output, playerId);
+                output.writeInt(0);
+                output.writeUTF(record.server());
             });
             adapter.broadcastToServer(KaProxyProtocol.CHANNEL, packet, server);
         } catch (IOException error) {
