@@ -2,6 +2,8 @@
 
 The KaProxy Back module enables KaTpa's `/back` and `/dback` to return to precise coordinates on another backend.
 
+Arrival packets carry a transaction ID. KaProxy resends every 0.5 seconds until the destination acknowledges the actual teleport (or the transaction times out). The backend waits for join and authentication and deduplicates retries. `/home`, `/warp`, and `/pwarp` use the same arrival channel. Upgrade the proxy and every KaTpa backend together; old and new wire formats are incompatible.
+
 ## Requirements
 
 * The KaProxy Back module is enabled.

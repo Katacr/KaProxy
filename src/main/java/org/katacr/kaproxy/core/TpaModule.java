@@ -296,8 +296,22 @@ final class TpaModule {
         }
         request.state = TpaRequest.State.ARRIVING;
         if (!sendEvent(traveler, "arrival", request, output -> { })) {
-            fail(request, "arrival-delivery-failed");
+            // 子服刚连接时发送可能失败；等待确认前重投，不把发送成功当落点成功。
         }
+        adapter.schedule(() -> retryDeliveredArrival(request.id), 500L);
+    }
+
+    private synchronized void retryDeliveredArrival(UUID requestId) {
+        TpaRequest request = requests.get(requestId);
+        if (request == null || request.state != TpaRequest.State.ARRIVING) {
+            return;
+        }
+        adapter.player(request.travelerId()).ifPresent(traveler -> {
+            if (traveler.serverName().equals(request.expectedServer)) {
+                sendEvent(traveler, "arrival", request, output -> { });
+            }
+        });
+        adapter.schedule(() -> retryDeliveredArrival(requestId), 500L);
     }
 
     /** 到期任务只清理仍待处理的请求，已接受事务由独立看门狗负责。 */

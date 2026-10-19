@@ -260,6 +260,36 @@ public final class KaProxyConfig {
         return bool("modules.kalogin.debug", false);
     }
 
+    /** 返回是否在他人尝试登录已登录账户时向该玩家定向发送安全告警。 */
+    public boolean kaloginSecurityAlertEnabled() {
+        return bool("modules.kalogin.security-alert.enabled", true);
+    }
+
+    /** 返回同一玩家的安全告警冷却秒数，防止被恶意刷屏。 */
+    public int kaloginSecurityAlertCooldownSeconds() {
+        return integer("modules.kalogin.security-alert.cooldown-seconds", 600, 0, 86400);
+    }
+
+    /** 返回是否在登录失败次数过多时临时封禁来源 IP。 */
+    public boolean kaloginIpBanEnabled() {
+        return bool("modules.kalogin.ip-ban.enabled", true);
+    }
+
+    /** 返回登录失败统计窗口秒数。 */
+    public int kaloginIpBanWindowSeconds() {
+        return integer("modules.kalogin.ip-ban.window-seconds", 600, 1, 86400);
+    }
+
+    /** 返回窗口内登录失败达到多少次后封禁 IP。 */
+    public int kaloginIpBanThreshold() {
+        return integer("modules.kalogin.ip-ban.threshold", 10, 1, 10000);
+    }
+
+    /** 返回临时封禁 IP 的时长秒数。 */
+    public int kaloginIpBanDurationSeconds() {
+        return integer("modules.kalogin.ip-ban.duration-seconds", 1800, 1, 604800);
+    }
+
     /** 返回“上次下线位置”模块是否启用。 */
     public boolean lastSeenEnabled() {
         return bool("modules.lastseen.enabled", false);

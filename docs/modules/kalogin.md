@@ -17,6 +17,14 @@ modules:
     enabled: true
     bind-ip: true
     debug: false
+    security-alert:
+      enabled: true
+      cooldown-seconds: 600
+    ip-ban:
+      enabled: true
+      window-seconds: 600
+      threshold: 10
+      duration-seconds: 1800
 ```
 
 | 配置项 | 默认值 | 说明 |
@@ -24,6 +32,12 @@ modules:
 | `modules.kalogin.enabled` | `true` | 是否启用 KaLogin 跨服登录会话。 |
 | `modules.kalogin.bind-ip` | `true` | 会话绑定登录时的 IP；来源 IP 变化时拒绝恢复登录态。 |
 | `modules.kalogin.debug` | `false` | 记录会话建立、查询与失效的决策，用于排查链路问题。 |
+| `modules.kalogin.security-alert.enabled` | `true` | 他人尝试登录已登录账户时，向该玩家定向发送安全告警。 |
+| `modules.kalogin.security-alert.cooldown-seconds` | `600` | 同一玩家的告警冷却（秒），防止被恶意反复登录刷屏。 |
+| `modules.kalogin.ip-ban.enabled` | `true` | 登录失败次数过多时是否临时封禁来源 IP。 |
+| `modules.kalogin.ip-ban.window-seconds` | `600` | 登录失败统计窗口（秒）。 |
+| `modules.kalogin.ip-ban.threshold` | `10` | 窗口内失败达到该次数即封禁该 IP。 |
+| `modules.kalogin.ip-ban.duration-seconds` | `1800` | 临时封禁时长（秒）。 |
 
 ## 工作流程
 
@@ -45,10 +59,27 @@ modules:
 - `kalogin/logout`：`uuid`。
 - `kalogin/unregister`：`uuid`、名称。
 - `kalogin/password_changed`：`uuid`。
+- `kalogin/login_failed`：`uuid`、IP；代理按 IP 累计失败，达阈值临时封禁。
 
 代理 → 查询来源后端：
 
 - `kalogin/session`：`uuid`、是否已认证、名称、会话建立时间、登录 IP、原因（`ok` / `none` / `ip-mismatch`）。
+
+代理 → 受害者所在后端：
+
+- `kalogin/security_alert`：`uuid`、名称、攻击者 IP；仅定向发往受害玩家所在后端，由该后端提示。
+
+## 安全告警
+
+当同一账户已有在线会话、又有新的连接尝试登录时，Velocity 会把新连接判为 `CONFLICTING_LOGIN`。KaProxy 借此向仍在线且已登录的玩家定向发送安全告警（默认提示"其他设备正在尝试登录您的账户"），由 KaLogin 用 `proxy.security-alert` 文案渲染展示。
+
+- 仅当受害玩家在线且处于已登录会话时才告警。
+- 按玩家冷却（`security-alert.cooldown-seconds`），防止攻击者反复制造冲突登录把受害者刷屏。
+- 被拒连接与在线会话来源 IP 相同时视为玩家自身重连，跳过告警。
+
+## 登录失败临时封禁
+
+KaLogin 每次密码错误会向代理上报 `kalogin/login_failed`；当冲突登录的幸存连接已认证时，被拒连接也计为一次失败（未认证占位连接场景不计数，避免误封被拒的正版玩家）。KaProxy 按来源 IP 在 `window-seconds` 窗口内累计失败次数，达到 `threshold` 即临时封禁该 IP `duration-seconds`；被封 IP 的后续连接在 `PreLoginEvent` 阶段被拒绝。
 
 ## 前置条件
 

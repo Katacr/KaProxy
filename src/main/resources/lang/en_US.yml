@@ -31,3 +31,5 @@ customteleport-encode-failed: "Failed to encode a custom cross-server teleport p
 unknown-customteleport-action: "Ignoring unknown custom teleport action: {action}"
 custommessage-encode-failed: "Failed to encode a custom cross-server message packet."
 unknown-custommessage-action: "Ignoring unknown custom message action: {action}"
+kalogin-security-alert-encode-failed: "Failed to encode a KaLogin security alert packet."
+kalogin-ip-banned-kick: "Your IP has been temporarily blocked after too many failed logins. Please try again later."

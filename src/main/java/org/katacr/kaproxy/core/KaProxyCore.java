@@ -197,6 +197,19 @@ public final class KaProxyCore {
         }
     }
 
+    /**
+     * 报告"他人尝试登录已登录账户"：向仍在线且已登录的受害玩家定向发送安全告警。
+     * 返回是否实际发出（未登录、离线或处于冷却期时返回 false）。
+     */
+    public boolean reportConflictLogin(ProxyPlayer victim, String attackerIp) {
+        return kaloginModule.reportConflictLogin(victim, attackerIp);
+    }
+
+    /** 判断来源 IP 是否处于 KaLogin 的临时封禁中。 */
+    public boolean isIpBanned(String ip) {
+        return kaloginModule.isIpBanned(ip);
+    }
+
     /** 玩家真正离开代理时取消其参与的短期事务。 */
     public void playerDisconnected(ProxyPlayer player) {
         broadcastModule.playerDisconnected(player);

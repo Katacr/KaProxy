@@ -7,6 +7,7 @@ import com.velocitypowered.api.event.EventTask;
 import com.velocitypowered.api.event.Subscribe;
 import com.velocitypowered.api.event.connection.DisconnectEvent;
 import com.velocitypowered.api.event.connection.PluginMessageEvent;
+import com.velocitypowered.api.event.connection.PreLoginEvent;
 import com.velocitypowered.api.event.player.PlayerChooseInitialServerEvent;
 import com.velocitypowered.api.event.player.ServerPostConnectEvent;
 import com.velocitypowered.api.event.proxy.ProxyInitializeEvent;
@@ -115,12 +116,59 @@ public final class KaProxyVelocity {
         }
     }
 
-    /** 玩家离开代理时取消其参与的临时事务。 */
+    /**
+     * 玩家离开代理时取消其参与的临时事务。
+     *
+     * <p>只有 {@code SUCCESSFUL_LOGIN}（真正登录并进入过群组的会话）才算真实离开。其余状态
+     * （{@code PRE_SERVER_JOIN}、{@code CANCELLED_BY_USER_BEFORE_COMPLETE} 等）是尚未进入
+     * 拓扑的连接；{@code CONFLICTING_LOGIN} 是同名重复登录被平台踢掉的旧连接（玩家实际仍在
+     * 线）。若不过滤，扫描器、进服中途取消或换线重登都会误广播"离开了群组服务器"。</p>
+     */
     @Subscribe
     public void onDisconnect(DisconnectEvent event) {
-        if (core != null) {
-            core.playerDisconnected(new VelocityPlayer(server, event.getPlayer()));
+        if (core == null) {
+            return;
         }
+        if (event.getLoginStatus() == DisconnectEvent.LoginStatus.CONFLICTING_LOGIN) {
+            // 同一账户已有在线会话，本次连接被平台拒绝：视为他人尝试登录已登录账户。
+            // 向仍在线且已登录的玩家定向告警（内部含冷却，防止被反复刷屏）。
+            // 若被拒连接与在线会话来源 IP 相同，多为玩家自身断线快速重连，跳过以免误报。
+            String attackerIp = remoteAddress(event.getPlayer());
+            server.getPlayer(event.getPlayer().getUniqueId()).ifPresent(online -> {
+                if (!attackerIp.isEmpty() && attackerIp.equals(remoteAddress(online))) {
+                    return;
+                }
+                core.reportConflictLogin(new VelocityPlayer(server, online), attackerIp);
+            });
+            return;
+        }
+        if (event.getLoginStatus() != DisconnectEvent.LoginStatus.SUCCESSFUL_LOGIN) {
+            logger.info("[KaProxy/debug] 忽略非登录态断开: player=" + event.getPlayer().getUsername()
+                    + ", status=" + event.getLoginStatus());
+            return;
+        }
+        core.playerDisconnected(new VelocityPlayer(server, event.getPlayer()));
+    }
+
+    /** 玩家登录前检查来源 IP 是否处于临时封禁中。 */
+    @Subscribe
+    public void onPreLogin(PreLoginEvent event) {
+        if (core == null) {
+            return;
+        }
+        var remote = event.getConnection().getRemoteAddress();
+        String ip = remote == null || remote.getAddress() == null
+                ? "" : remote.getAddress().getHostAddress();
+        if (core.isIpBanned(ip)) {
+            event.setResult(PreLoginEvent.PreLoginComponentResult.denied(
+                    Component.text(language.text("kalogin-ip-banned-kick"))));
+        }
+    }
+
+    /** 提取玩家连接的来源 IP；无地址时返回空串。 */
+    private String remoteAddress(Player player) {
+        var address = player.getRemoteAddress();
+        return address == null || address.getAddress() == null ? "" : address.getAddress().getHostAddress();
     }
 
     /** 截获后端消息，阻止统一协议被错误转发给客户端。 */

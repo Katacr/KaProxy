@@ -2,6 +2,8 @@
 
 KaProxy allows players on different backends to continue using familiar TPA and TPAHERE flows.
 
+Arrival packets are retried every 0.5 seconds until the destination acknowledges the actual teleport. The backend waits for join and authentication and deduplicates retries. Upgrade the proxy and every KaTpa backend together.
+
 ## Requirements
 
 * The KaProxy Tpa module is enabled.

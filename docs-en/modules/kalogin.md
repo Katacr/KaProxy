@@ -17,6 +17,14 @@ modules:
     enabled: true
     bind-ip: true
     debug: false
+    security-alert:
+      enabled: true
+      cooldown-seconds: 600
+    ip-ban:
+      enabled: true
+      window-seconds: 600
+      threshold: 10
+      duration-seconds: 1800
 ```
 
 | Option | Default | Description |
@@ -24,6 +32,12 @@ modules:
 | `modules.kalogin.enabled` | `true` | Enable the KaLogin cross-server session. |
 | `modules.kalogin.bind-ip` | `true` | Bind the session to the login IP; restore is rejected when the IP changes. |
 | `modules.kalogin.debug` | `false` | Log session create/query/invalidate decisions for troubleshooting. |
+| `modules.kalogin.security-alert.enabled` | `true` | Send a targeted security alert when someone tries to log into an already logged-in account. |
+| `modules.kalogin.security-alert.cooldown-seconds` | `600` | Per-player alert cooldown (seconds) to prevent spam via repeated logins. |
+| `modules.kalogin.ip-ban.enabled` | `true` | Temporarily ban a source IP after too many failed logins. |
+| `modules.kalogin.ip-ban.window-seconds` | `600` | Failure counting window (seconds). |
+| `modules.kalogin.ip-ban.threshold` | `10` | Ban the IP once failures in the window reach this count. |
+| `modules.kalogin.ip-ban.duration-seconds` | `1800` | Temporary ban duration (seconds). |
 
 ## Flow
 
@@ -45,10 +59,27 @@ Backend to proxy:
 - `kalogin/logout`: `uuid`.
 - `kalogin/unregister`: `uuid`, name.
 - `kalogin/password_changed`: `uuid`.
+- `kalogin/login_failed`: `uuid`, IP; the proxy counts failures per IP and temporarily bans the IP at the threshold.
 
 Proxy to the querying backend:
 
 - `kalogin/session`: `uuid`, authenticated flag, name, session creation time, login IP, reason (`ok` / `none` / `ip-mismatch`).
+
+Proxy to the victim's backend:
+
+- `kalogin/security_alert`: `uuid`, name, attacker IP; sent only to the victim's backend, which displays the alert.
+
+## Security Alert
+
+When an account already has an online session and another connection tries to log in, Velocity marks the new connection `CONFLICTING_LOGIN`. KaProxy uses this to send a targeted security alert to the still-online, logged-in player (by default: "another device is trying to log into your account"), rendered by KaLogin with the `proxy.security-alert` text.
+
+- Only alerts when the victim is online and in a logged-in session.
+- Per-player cooldown (`security-alert.cooldown-seconds`) prevents an attacker from spamming the victim via repeated conflict logins.
+- When the rejected connection and the online session share the same source IP (the player's own reconnect), the alert is skipped.
+
+## Temporary IP Ban
+
+KaLogin reports `kalogin/login_failed` on each incorrect password. A proxy-rejected `CONFLICTING_LOGIN` also counts when the surviving connection is authenticated; conflicts against an unauthenticated placeholder are excluded to avoid counting a rejected legitimate player against their own IP. KaProxy counts failures per source IP within `window-seconds` and bans the IP for `duration-seconds` once the count reaches `threshold`; banned IPs are rejected at the `PreLoginEvent` stage.
 
 ## Requirements
 

@@ -107,6 +107,54 @@ final class KaloginModuleTest {
     }
 
     @Test
+    void conflictLoginAlertsAuthenticatedOnlinePlayerOnce() throws IOException {
+        UUID playerId = UUID.randomUUID();
+        FakePlayer victim = new FakePlayer(playerId, "Alex", "lobby");
+        module.handle(victim, "lobby", "auth", decode(identityPayload(victim, "1.2.3.4")));
+        adapter.clear();
+
+        assertTrue(module.reportConflictLogin(victim, "9.9.9.9"));
+        assertEquals("security_alert", KaProxyProtocol.decode(victim.backendPackets.get(0)).action());
+        // 冷却期内再次冲突登录不再告警，避免被刷屏。
+        assertFalse(module.reportConflictLogin(victim, "9.9.9.9"));
+        assertEquals(1, victim.backendPackets.size());
+    }
+
+    @Test
+    void conflictLoginForUnauthenticatedPlayerIsIgnored() {
+        FakePlayer victim = new FakePlayer(UUID.randomUUID(), "Alex", "lobby");
+        for (int i = 0; i < 10; i++) {
+            assertFalse(module.reportConflictLogin(victim, "9.9.9.9"));
+        }
+        assertTrue(victim.backendPackets.isEmpty());
+        assertFalse(module.isIpBanned("9.9.9.9"));
+    }
+
+    @Test
+    void repeatedLoginFailuresTemporarilyBanIp() throws IOException {
+        UUID playerId = UUID.randomUUID();
+        FakePlayer carrier = new FakePlayer(playerId, "Alex", "lobby");
+        byte[] payload = failurePayload(playerId, "9.9.9.9");
+        for (int i = 0; i < 9; i++) {
+            module.handle(carrier, "lobby", "login_failed", decode(payload));
+        }
+        assertFalse(module.isIpBanned("9.9.9.9"));
+        module.handle(carrier, "lobby", "login_failed", decode(payload));
+        assertTrue(module.isIpBanned("9.9.9.9"));
+        assertFalse(module.isIpBanned("1.1.1.1"));
+    }
+
+    /** 构建 login_failed 的 uuid + ip 载荷。 */
+    private byte[] failurePayload(UUID playerId, String ip) throws IOException {
+        ByteArrayOutputStream buf = new ByteArrayOutputStream();
+        try (DataOutputStream out = new DataOutputStream(buf)) {
+            KaProxyProtocol.writeUuid(out, playerId);
+            out.writeUTF(ip);
+        }
+        return buf.toByteArray();
+    }
+
+    @Test
     void authWithMismatchedCarrierIsIgnored() throws IOException {
         FakePlayer carrier = new FakePlayer(UUID.randomUUID(), "Alex", "lobby");
         UUID otherId = UUID.randomUUID();
@@ -157,6 +205,13 @@ final class KaloginModuleTest {
             packets.clear();
         }
 
+        private String lastAction() throws IOException {
+            if (packets.isEmpty()) {
+                throw new AssertionError("未收到任何数据包");
+            }
+            return KaProxyProtocol.decode(packets.get(packets.size() - 1)).action();
+        }
+
         private SessionReply sessionReply() throws IOException {
             if (packets.isEmpty()) {
                 throw new AssertionError("未收到 session 响应");
@@ -188,6 +243,7 @@ final class KaloginModuleTest {
         private final UUID id;
         private final String name;
         private final String server;
+        private final List<byte[]> backendPackets = new ArrayList<>();
         private boolean disconnected;
 
         private FakePlayer(UUID id, String name, String server) {
@@ -199,7 +255,7 @@ final class KaloginModuleTest {
         @Override public UUID uniqueId() { return id; }
         @Override public String name() { return name; }
         @Override public String serverName() { return server; }
-        @Override public boolean sendToBackend(String channel, byte[] data) { return true; }
+        @Override public boolean sendToBackend(String channel, byte[] data) { backendPackets.add(data); return true; }
         @Override public void connect(String serverName, Consumer<Boolean> completion) { completion.accept(true); }
         @Override public void disconnect(String reason) { disconnected = true; }
     }

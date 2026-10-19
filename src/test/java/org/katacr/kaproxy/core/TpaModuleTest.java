@@ -88,9 +88,15 @@ final class TpaModuleTest {
         assertEquals("server-b", sender.serverName());
         assertEquals(1, sender.actions.stream().filter("arrival"::equals).count());
 
+        // 消息发送成功不代表目标服已落点：无 ACK 时应重投。
+        adapter.scheduled.get(adapter.scheduled.size() - 1).run();
+        assertEquals(2, sender.actions.stream().filter("arrival"::equals).count());
+
         module.handle(sender, sender.serverName(), "arrival_complete", payload(output ->
                 KaProxyProtocol.writeUuid(output, requestId)));
         assertEquals(1, sender.actions.stream().filter("request_completed"::equals).count());
+        adapter.scheduled.get(adapter.scheduled.size() - 1).run();
+        assertEquals(2, sender.actions.stream().filter("arrival"::equals).count());
     }
 
     /** 旧请求 UUID 不能撤销发送者后来建立的请求。 */

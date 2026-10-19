@@ -85,6 +85,20 @@ modules:
     bind-ip: true
     # 开启后记录会话建立、查询与失效的决策，用于排查链路问题。
     debug: false
+    # 安全告警：他人尝试登录已登录账户时，向在线且已登录的玩家定向提示。
+    security-alert:
+      enabled: true
+      # 同一玩家的告警冷却（秒），防止被恶意反复登录刷屏。默认 10 分钟。
+      cooldown-seconds: 600
+    # 登录失败临时封禁：同一来源 IP 在窗口内失败达阈值时临时封禁。
+    ip-ban:
+      enabled: true
+      # 失败统计窗口（秒）。
+      window-seconds: 600
+      # 窗口内失败达到该次数即封禁该 IP。
+      threshold: 10
+      # 封禁时长（秒）。默认 30 分钟。
+      duration-seconds: 1800
 
   lastseen:
     # 上次下线位置模块：玩家登录后回到上次下线的子服与坐标。

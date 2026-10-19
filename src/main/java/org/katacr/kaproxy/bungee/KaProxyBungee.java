@@ -9,6 +9,7 @@ import net.md_5.bungee.api.connection.Server;
 import net.md_5.bungee.api.event.PlayerDisconnectEvent;
 import net.md_5.bungee.api.event.PluginMessageEvent;
 import net.md_5.bungee.api.event.PostLoginEvent;
+import net.md_5.bungee.api.event.PreLoginEvent;
 import net.md_5.bungee.api.event.ServerConnectedEvent;
 import net.md_5.bungee.api.plugin.Command;
 import net.md_5.bungee.api.plugin.Listener;
@@ -106,6 +107,21 @@ public final class KaProxyBungee extends Plugin implements Listener {
     @EventHandler
     public void onDisconnect(PlayerDisconnectEvent event) {
         core.playerDisconnected(new BungeePlayer(getProxy(), event.getPlayer()));
+    }
+
+    /** 玩家登录前检查来源 IP 是否处于临时封禁中。 */
+    @EventHandler
+    public void onPreLogin(PreLoginEvent event) {
+        if (core == null) {
+            return;
+        }
+        var address = event.getConnection().getAddress();
+        String ip = address == null || address.getAddress() == null
+                ? "" : address.getAddress().getHostAddress();
+        if (core.isIpBanned(ip)) {
+            event.setCancelled(true);
+            event.setCancelReason(TextComponent.fromLegacyText(language.text("kalogin-ip-banned-kick")));
+        }
     }
 
     /** 截获来自后端的 KaProxy 或旧公会插件消息。 */

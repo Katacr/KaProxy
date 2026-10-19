@@ -137,8 +137,14 @@ public final class BroadcastModule {
         UUID playerId = player.uniqueId();
         pendingSwitches.remove(playerId);
         long session = playerSessions.getOrDefault(playerId, 0L);
-        disconnectedSessions.put(playerId, session);
         PendingQuit pending = pendingQuits.get(playerId);
+        // 平台断开后玩家会话仍在线，说明这是旧连接的伪断开（换线重登/重复登录被踢），
+        // 玩家实际仍在群组：不能广播离开，等平台的真实断开或新会话接管。
+        if (adapter.player(playerId).isPresent() && pending == null) {
+            debug(() -> "断开时玩家会话仍在线，视为伪断开并跳过退出广播: player=" + player.name());
+            return;
+        }
+        disconnectedSessions.put(playerId, session);
         if (pending != null) {
             quitSnapshots.remove(playerId);
             confirmQuit(pending, true);

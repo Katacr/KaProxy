@@ -142,6 +142,29 @@ final class BroadcastModuleTest {
     }
 
     @Test
+    void disconnectWhileSessionStillOnlineIsIgnoredAsPhantomQuit() throws Exception {
+        FakePlayer player = online("Alex", "lobby");
+        module.playerConnected(player, null, true);
+        module.handle(null, "lobby", "quit_snapshot", decode(buildQuitSnapshotPayload(player.uniqueId(), "Alex", "lobby")));
+        adapter.clear();
+
+        module.playerDisconnected(player);
+        assertEquals(List.of(), adapter.actions());
+    }
+
+    @Test
+    void disconnectAfterSessionLeavesProxyForwardsQuit() throws Exception {
+        FakePlayer player = online("Alex", "lobby");
+        module.playerConnected(player, null, true);
+        module.handle(null, "lobby", "quit_snapshot", decode(buildQuitSnapshotPayload(player.uniqueId(), "Alex", "lobby")));
+        adapter.clear();
+
+        adapter.setOffline(player);
+        module.playerDisconnected(player);
+        assertEquals(List.of("player_quit"), adapter.actions());
+    }
+
+    @Test
     void bungeeReconnectAfterDisconnectIsNewJoinInsteadOfSwitch() throws Exception {
         UUID playerId = UUID.randomUUID();
         FakePlayer oldSession = online(playerId, "Alex", "lobby");
